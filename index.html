@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Panda · Bebidas & Market</title>
+  <meta name="description" content="Panda · Ecommerce simple con carrito y pedido por WhatsApp" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="https://i.ibb.co/B3VHwHs/panda-icon.png" type="image/png">
+</head>
+
+<body>
+  <!-- Age Gate 18+ -->
+  <div id="ageBackdrop" class="age-backdrop">
+    <div class="age-modal">
+      <h2 style="margin:0 0 6px 0">Confirmación de edad</h2>
+      <p class="muted" style="margin:0 0 14px 0">Para ingresar a Panda confirmá que sos mayor de 18 años. Algunas categorías incluyen bebidas alcohólicas.</p>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="icon-btn" onclick="denyAge()">No, soy menor</button>
+        <button class="icon-btn primary" onclick="acceptAge()">Sí, soy mayor</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de confirmación para vaciar carrito -->
+  <div id="clearCartModal" class="alert-backdrop">
+    <div class="alert-modal">
+      <h3>¿Estás seguro?</h3>
+      <p class="muted">Se eliminarán todos los productos del carrito.</p>
+      <div class="alert-actions">
+        <button class="btn secondary" onclick="closeClearCartModal()">Cancelar</button>
+        <button class="btn danger" onclick="confirmClearCart()">Vaciar carrito</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alert de formulario incompleto -->
+  <div id="formAlert" class="toast-alert">
+    <span id="formAlertMessage"></span>
+  </div>
+
+  <!-- Drawer carrito -->
+<aside id="cartDrawer" class="drawer" aria-hidden="true">
+  <div class="drawer-header">
+    <h3>Tus productos</h3>
+    <button class="icon-btn" onclick="toggleCart(false)">✕</button>
+  </div>
+
+  <div class="drawer-body">
+    <!-- 🚚 Opciones de entrega -->
+    <div class="delivery-options">
+      <h4>Forma de entrega</h4>
+      <div class="options">
+        <button type="button" id="optionDelivery" class="delivery-btn active" onclick="setDelivery('delivery')">Delivery</button>
+        <button type="button" id="optionLocal" class="delivery-btn" onclick="setDelivery('local')">Retiro</button>
+      </div>
+    </div>
+
+    <!-- 📝 Formulario -->
+    <div class="form">
+      <input id="buyerName" placeholder="Nombre completo" autocomplete="name" type="text" />
+      <input id="buyerPhone" placeholder="Teléfono" autocomplete="tel" type="tel" pattern="[0-9]*" inputmode="numeric" />
+      <input id="buyerAddress" placeholder="Dirección (calle y número)" autocomplete="street-address" type="text" />
+      <input id="buyerNotes" placeholder="Observaciones" type="text" />
+    </div>
+
+    <!-- 🧺 Productos -->
+    <div class="products-section">
+      <div id="cartListContainer">
+        <div id="cartList"></div>
+      </div>
+    </div>
+
+    <!-- Mensaje de carrito vacío -->
+    <div id="cartEmpty" class="empty" style="display:none">Tu carrito está vacío.</div>
+
+    <!-- 💰 Resumen de compra -->
+    <div class="order-summary">
+      <div class="summary-row">
+        <span>Subtotal</span>
+        <strong id="subtotal">$0</strong>
+      </div>
+      <div class="summary-row">
+        <span>Delivery</span>
+        <strong id="deliveryCost">$1.500</strong>
+      </div>
+      <hr>
+      <div class="summary-row total">
+        <span>TOTAL</span>
+        <strong id="total">$0</strong>
+      </div>
+    </div>
+
+    <!-- 🔘 Botones de acción -->
+    <div class="action-buttons">
+      <button id="clearCartBtn" class="btn danger" onclick="clearCart()">Vaciar carrito</button>
+      <button id="checkoutBtn" class="btn whatsapp" onclick="checkoutWhatsApp()">Enviar pedido</button>
+    </div>
+
+    <small class="muted">Al continuar se abrirá WhatsApp con el detalle del pedido.</small>
+  </div>
+</aside>
+
+
+  <!-- Modal Detalle Producto -->
+  <div id="productModal" class="modal-backdrop">
+    <div class="modal">
+      <button class="close-btn" onclick="closeModal()">✕</button>
+      <img id="modalImage" src="" alt="" class="modal-img">
+      <h2 id="modalTitle"></h2>
+      <p id="modalCategory" class="muted"></p>
+      <h3 id="modalPrice"></h3>
+      <p id="modalDesc" class="muted">Producto seleccionado de nuestra tienda. Ideal para disfrutar en cualquier ocasión.</p>
+      <button id="modalAddBtn" class="btn primary">Agregar</button>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header>
+    <div class="container nav">
+      <div class="brand">
+        <img src="logo.png" alt="Panda" class="logo-img" style="width:34px;height:34px;border-radius:8px;object-fit:contain" />
+        <h1></h1>
+      </div>
+      <label class="search" style="max-width:520px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 21L16.65 16.65" stroke="#999" stroke-width="2" stroke-linecap="round"/><circle cx="11" cy="11" r="7" stroke="#999" stroke-width="2"/></svg>
+        <input id="search" type="search" placeholder="¿Qué tomamos?" oninput="applyFilters()" />
+      </label>
+      <button class="icon-btn" onclick="toggleCart(true)">🛒 <span id="miniCount" style="margin-left:6px;opacity:.8"></span></button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section id="filters" class="filters"></section>
+    <section id="grid" class="grid"></section>
+  </main>
+
+  <footer class="footer fixed-footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <h3>Panda · Bebidas & Market</h3>
+        <p>Prohibida la venta de alcohol a menores de 18 años. Promovemos el consumo responsable.</p>
+      </div>
+
+      <div class="footer-links">
+        <a href="#">Términos</a>
+        <a href="#">Privacidad</a>
+        <a href="#">Envíos</a>
+        <a href="https://wa.me/5490000000000" target="_blank">WhatsApp</a>
+        <a href="https://instagram.com" target="_blank">Instagram</a>
+      </div>
+
+      <div class="footer-copy">
+        © <span id="year"></span> Panda · Diseñado y desarrollado por <strong>Hostara</strong>.
+      </div>
+    </div>
+  </footer>
+
+  <script type="module" src="script.js"></script>
+
+</body>
+</html>
