@@ -211,7 +211,7 @@ function render(list) {
         const rect = e.target.getBoundingClientRect();
         animateToCart(p.image, rect.left, rect.top);
         window.addToCart(p);
-        showToast("Producto agregado al carrito 🛒");
+        showToast("Producto agregado al carrito ");
       });
     }
 
@@ -235,7 +235,7 @@ function openModal(p) {
   addBtn.onclick = () => { 
     window.addToCart(p); 
     closeModal(); 
-    showToast("Producto agregado al carrito 🛒"); 
+    showToast("Producto agregado al carrito"); 
   };
 }
 
@@ -399,7 +399,7 @@ function applyAgeRestriction(value){
     notice.style.marginBottom = '12px';
     notice.style.fontSize = '14px';
     notice.style.color = '#ff5a5a';
-    notice.textContent = 'Modo restringido: solo se muestran productos sin alcohol 🍹';
+    notice.textContent = 'Modo restringido: solo se muestran productos sin alcohol. Recarga la web para cambiar esta configuración.';
     filters.before(notice);
     
     // Actualizar búsqueda para solo buscar en productos sin alcohol
