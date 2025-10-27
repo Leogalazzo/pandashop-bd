@@ -443,7 +443,7 @@ window.checkoutWhatsApp = () => {
   if (!phone) return showFormAlert("❌ Ingresá tu teléfono");
   if (currentDelivery === "delivery" && !address) return showFormAlert("❌ Ingresá tu dirección");
 
-  const lines = ["*Panda · Nuevo pedido*",""];
+  const lines = ["*Nuevo pedido*",""];
   cart.forEach(i=>lines.push(`• ${i.name} x${i.qty} — $${formatNumber(i.price*i.qty)}`));
   const subtotal=cart.reduce((s,i)=>s+i.price*i.qty,0);
   const deliveryCost=currentDelivery==='delivery'?1500:0;
@@ -456,10 +456,10 @@ window.checkoutWhatsApp = () => {
   lines.push("\n———");
   lines.push(`*Nombre:* ${name}`);
   lines.push(`*Teléfono:* ${phone}`);
-  lines.push(`*Entrega:* ${currentDelivery==='local'?'Retiro en local':'Delivery'}`);
+  lines.push(`*Entrega:* ${currentDelivery==='local'?'Retiro':'Delivery'}`);
   if(currentDelivery==='delivery') lines.push(`*Dirección:* ${address}`);
   if(notes) lines.push(`*Notas:* ${notes}`);
-  lines.push("\nEnviado desde *panda.shop*");
+  lines.push("\nEnviado desde *pandaonline.com.ar*");
   const text=encodeURIComponent(lines.join("\n"));
   window.open(`https://wa.me/${WHATSAPP_PHONE}?text=${text}`,"_blank");
   window.__PANDA_STATE__.cart=[];saveCart();updateCartUI();
