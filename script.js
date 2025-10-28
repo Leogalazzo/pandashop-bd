@@ -22,6 +22,29 @@ const db = getFirestore(app);
 const WHATSAPP_PHONE = '5493644539325';
 const AGE_KEY = 'panda_age_ok';
 
+// Control de tiempo mínimo del loader
+const LOADER_START_TIME = Date.now();
+const MIN_LOADER_TIME = 2000; // 2 segundos mínimo
+
+// Función para ocultar el loader de página
+function hidePageLoader() {
+  const loader = document.getElementById('pageLoader');
+  if (loader) {
+    const elapsedTime = Date.now() - LOADER_START_TIME;
+    const remainingTime = Math.max(0, MIN_LOADER_TIME - elapsedTime);
+    
+    // Esperar el tiempo mínimo antes de ocultar
+    setTimeout(() => {
+      loader.classList.add('fade-out');
+      // Habilitar scroll del body
+      document.body.classList.remove('loading');
+      setTimeout(() => {
+        loader.style.display = 'none';
+      }, 500); // Coincide con la duración de la transición CSS
+    }, remainingTime);
+  }
+}
+
 // Función auxiliar para cargar el carrito desde localStorage
 function loadCart() {
   try { 
@@ -40,15 +63,6 @@ const PRODUCTS_CACHE_KEY = 'panda_products_cache';
 const PRODUCTS_CACHE_TIME = 60000; // 1 minuto
 
 async function loadProducts() {
-  // Mostrar animación de carga
-  const grid = document.getElementById('grid');
-  grid.innerHTML = `
-    <div style="grid-column: 1 / -1; text-align: center; padding: 60px;">
-      <div style="font-size: 48px;">⏳</div>
-      <h3>Cargando productos...</h3>
-    </div>
-  `;
-
   // Mostrar productos en cache inmediatamente si existe
   const cachedData = localStorage.getItem(PRODUCTS_CACHE_KEY);
   if (cachedData) {
@@ -61,6 +75,9 @@ async function loadProducts() {
       render(data);
       updateCartUI();
       document.getElementById('year').textContent = new Date().getFullYear();
+      
+      // Ocultar loader cuando se cargan productos desde cache
+      hidePageLoader();
       
       if (ageStatus === null) showAgeGate();
       else applyAgeRestriction(ageStatus);
@@ -86,11 +103,15 @@ async function loadProducts() {
     render(data);
     updateCartUI();
     
+    // Ocultar loader cuando se cargan productos desde Firebase
+    hidePageLoader();
+    
     if (ageStatus === null) showAgeGate();
     else applyAgeRestriction(ageStatus);
   } catch (error) {
     console.error("Error cargando productos:", error);
     if (!cachedData) {
+      hidePageLoader();
       alert("No se pudieron cargar los productos desde Firebase.");
     }
   }
@@ -116,13 +137,33 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
   
+  // Listeners para cerrar modales de alerta al hacer clic en el backdrop
+  const clearCartModal = document.getElementById('clearCartModal');
+  if (clearCartModal) {
+    clearCartModal.addEventListener('click', (e) => {
+      if (e.target === clearCartModal) {
+        closeClearCartModal();
+      }
+    });
+  }
+  
+  const deleteItemModal = document.getElementById('deleteItemModal');
+  if (deleteItemModal) {
+    deleteItemModal.addEventListener('click', (e) => {
+      if (e.target === deleteItemModal) {
+        closeDeleteItemModal();
+      }
+    });
+  }
+  
   // Cerrar carrito al hacer clic fuera (solo en PC)
   document.addEventListener('click', (e) => {
     const drawer = document.getElementById('cartDrawer');
     if (window.innerWidth >= 768 && drawer && drawer.classList.contains('open')) {
       const isClickInsideDrawer = drawer.contains(e.target);
       const isCartButton = e.target.closest('button[onclick*="toggleCart"]');
-      if (!isClickInsideDrawer && !isCartButton) {
+      const isInModal = e.target.closest('.alert-backdrop, .alert-modal');
+      if (!isClickInsideDrawer && !isCartButton && !isInModal) {
         toggleCart(false);
       }
     }
@@ -329,7 +370,7 @@ window.confirmClearCart = () => {
   window.__PANDA_STATE__.cart = [];
   saveCart();
   updateCartUI();
-  document.getElementById(' เชcartModal').classList.remove('show');
+  document.getElementById('clearCartModal').classList.remove('show');
 };
 
 // ==========================================================
@@ -537,3 +578,22 @@ window.checkoutWhatsApp = () => {
 function formatNumber(n){return new Intl.NumberFormat('es-AR').format(Math.round(n));}
 function showToast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),1800);}
 function showFormAlert(m){const a=document.getElementById('formAlert');const msg=document.getElementById('formAlertMessage');msg.textContent=m;a.classList.add('show');setTimeout(()=>a.classList.remove('show'),2500);}
+
+// ==========================================================
+// 🔝 SCROLL TO TOP
+// ==========================================================
+window.scrollToTop = () => {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+// Mostrar/ocultar botón scroll to top
+window.addEventListener('scroll', () => {
+  const scrollTopBtn = document.getElementById('scrollTopBtn');
+  if (scrollTopBtn) {
+    if (window.pageYOffset > 300) {
+      scrollTopBtn.classList.add('show');
+    } else {
+      scrollTopBtn.classList.remove('show');
+    }
+  }
+});
