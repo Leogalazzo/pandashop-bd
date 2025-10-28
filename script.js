@@ -40,6 +40,15 @@ const PRODUCTS_CACHE_KEY = 'panda_products_cache';
 const PRODUCTS_CACHE_TIME = 60000; // 1 minuto
 
 async function loadProducts() {
+  // Mostrar animación de carga
+  const grid = document.getElementById('grid');
+  grid.innerHTML = `
+    <div style="grid-column: 1 / -1; text-align: center; padding: 60px;">
+      <div style="font-size: 48px;">⏳</div>
+      <h3>Cargando productos...</h3>
+    </div>
+  `;
+
   // Mostrar productos en cache inmediatamente si existe
   const cachedData = localStorage.getItem(PRODUCTS_CACHE_KEY);
   if (cachedData) {
@@ -106,6 +115,18 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+  
+  // Cerrar carrito al hacer clic fuera (solo en PC)
+  document.addEventListener('click', (e) => {
+    const drawer = document.getElementById('cartDrawer');
+    if (window.innerWidth >= 768 && drawer && drawer.classList.contains('open')) {
+      const isClickInsideDrawer = drawer.contains(e.target);
+      const isCartButton = e.target.closest('button[onclick*="toggleCart"]');
+      if (!isClickInsideDrawer && !isCartButton) {
+        toggleCart(false);
+      }
+    }
+  });
   
   // Cargar productos
   loadProducts();
@@ -290,6 +311,12 @@ window.toggleCart = (open) => {
   drawer.classList.toggle('open', !!open);
   drawer.setAttribute('aria-hidden', !open);
   document.body.style.overflow = open ? 'hidden' : '';
+  if (open) {
+    const drawerBody = drawer.querySelector('.drawer-body');
+    if (drawerBody) {
+      setTimeout(() => drawerBody.scrollTop = 0, 100);
+    }
+  }
 };
 
 window.clearCart = () => {
@@ -302,7 +329,32 @@ window.confirmClearCart = () => {
   window.__PANDA_STATE__.cart = [];
   saveCart();
   updateCartUI();
-  document.getElementById('clearCartModal').classList.remove('show');
+  document.getElementById(' เชcartModal').classList.remove('show');
+};
+
+// ==========================================================
+// 🗑️ ELIMINAR PRODUCTO DEL CARRITO
+// ==========================================================
+let pendingDeleteId = null;
+window.openDeleteItemModal = (id) => {
+  const item = window.__PANDA_STATE__.cart.find(x => x.id === id);
+  if (item) {
+    pendingDeleteId = id;
+    document.getElementById('deleteItemMessage').textContent = `¿Estás seguro de eliminar "${item.name}" del carrito?`;
+    document.getElementById('deleteItemModal').classList.add('show');
+  }
+};
+window.closeDeleteItemModal = () => {
+  document.getElementById('deleteItemModal').classList.remove('show');
+  pendingDeleteId = null;
+};
+window.confirmDeleteItem = () => {
+  if (pendingDeleteId) {
+    window.__PANDA_STATE__.cart = window.__PANDA_STATE__.cart.filter(x => x.id !== pendingDeleteId);
+    saveCart();
+    updateCartUI();
+    closeDeleteItemModal();
+  }
 };
 
 function updateCartUI() {
@@ -327,7 +379,7 @@ function updateCartUI() {
           <button onclick='decr("${item.id}")'>−</button>
           <span>${item.qty}</span>
           <button onclick='incr("${item.id}")'>+</button>
-          <button style="margin-left:8px" class="icon-btn" onclick='removeItem("${item.id}")'>🗑️</button>
+          <button style="margin-left:8px" class="icon-btn" onclick='openDeleteItemModal("${item.id}")'>🗑️</button>
         </div>
       </div>
       <div style="font-weight:700">$${formatNumber(item.price * item.qty)}</div>`;
@@ -346,8 +398,22 @@ function updateCartUI() {
   if (clearCartBtn) clearCartBtn.disabled = count === 0;
 }
 window.incr = (id) => { const c = window.__PANDA_STATE__.cart; const i = c.find(x => x.id === id); if (i) { i.qty++; saveCart(); updateCartUI(); } };
-window.decr = (id) => { const c = window.__PANDA_STATE__.cart; const i = c.find(x => x.id === id); if (i) { i.qty--; if (i.qty <= 0) removeItem(id); else { saveCart(); updateCartUI(); } } };
-window.removeItem = (id) => { const c = window.__PANDA_STATE__.cart; window.__PANDA_STATE__.cart = c.filter(x => x.id !== id); saveCart(); updateCartUI(); };
+window.decr = (id) => { 
+  const c = window.__PANDA_STATE__.cart; 
+  const i = c.find(x => x.id === id); 
+  if (i) { 
+    if (i.qty <= 1) {
+      removeItem(id);
+    } else {
+      i.qty--; 
+      saveCart(); 
+      updateCartUI(); 
+    }
+  } 
+};
+window.removeItem = (id) => { 
+  openDeleteItemModal(id);
+};
 
 // ==========================================================
 // 🚚 ENTREGA Y RETIRO
