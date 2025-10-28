@@ -12,7 +12,20 @@
   <link rel="icon" href="logo.png" type="image/png">
 </head>
 
-<body>
+<body class="loading">
+  <!-- Loader de carga -->
+  <div id="pageLoader" class="page-loader">
+    <div class="loader-content">
+      <img src="logo.png" alt="Panda" class="loader-logo" />
+      <div class="loader-spinner">
+        <div class="spinner-dot"></div>
+        <div class="spinner-dot"></div>
+        <div class="spinner-dot"></div>
+      </div>
+      <p class="loader-text">Cargando productos...</p>
+    </div>
+  </div>
+
   <!-- Age Gate 18+ -->
   <div id="ageBackdrop" class="age-backdrop">
     <div class="age-modal">
@@ -76,6 +89,11 @@
       <input id="buyerName" placeholder="Nombre completo" autocomplete="name" type="text" />
       <input id="buyerPhone" placeholder="Teléfono" autocomplete="tel" type="tel" pattern="[0-9]*" inputmode="numeric" />
       <input id="buyerAddress" placeholder="Dirección (calle y número)" autocomplete="street-address" type="text" />
+      <select id="buyerPayment">
+        <option value="" disabled selected>Forma de pago</option>
+        <option value="efectivo">Efectivo</option>
+        <option value="transferencia">Transferencia</option>
+      </select>
       <input id="buyerNotes" placeholder="Observaciones" type="text" />
     </div>
 
@@ -84,10 +102,9 @@
       <div id="cartListContainer">
         <div id="cartList"></div>
       </div>
+      <!-- Mensaje de carrito vacío -->
+      <div id="cartEmpty" class="empty" style="display:none">Tu carrito está vacío.</div>
     </div>
-
-    <!-- Mensaje de carrito vacío -->
-    <div id="cartEmpty" class="empty" style="display:none">Tu carrito está vacío.</div>
 
     <!-- 💰 Resumen de compra -->
     <div class="order-summary">
@@ -149,6 +166,13 @@
     <section id="filters" class="filters"></section>
     <section id="grid" class="grid"></section>
   </main>
+
+  <!-- Botón Scroll to Top -->
+  <button id="scrollTopBtn" class="scroll-top" onclick="scrollToTop()">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="18 15 12 9 6 15"></polyline>
+    </svg>
+  </button>
 
   <footer class="footer fixed-footer">
     <div class="footer-inner">
