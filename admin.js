@@ -32,6 +32,19 @@ document.addEventListener("DOMContentLoaded", async () => {
   buildCategoryFilter();
 
   document.getElementById('addProductBtn').onclick = openAddModal;
+  
+  const manageCategoriesBtn = document.getElementById('manageCategoriesBtn');
+  if (manageCategoriesBtn) {
+    manageCategoriesBtn.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log('Botón categorías clickeado');
+      openCategoriesModal();
+    };
+  } else {
+    console.error('No se encontró el botón manageCategoriesBtn');
+  }
+  
   document.getElementById('cancelBtn').onclick = closeModal;
   searchInput.oninput = applyFilters;
   filterCategory.onchange = applyFilters;
@@ -175,4 +188,133 @@ function applyFilters() {
   if (avail === 'unavailable') filtered = filtered.filter(p => !p.available);
 
   renderProducts(filtered);
+}
+
+// ==========================================================
+// GESTIÓN DE CATEGORÍAS
+// ==========================================================
+function openCategoriesModal() {
+  console.log('Función openCategoriesModal ejecutada');
+  const categoriesModal = document.getElementById('categoriesModal');
+  
+  if (!categoriesModal) {
+    console.error('Modal de categorías no encontrado');
+    alert('Error: No se encontró el modal de categorías en el DOM');
+    return;
+  }
+  
+  console.log('Modal encontrado, renderizando lista de categorías...');
+  console.log('Productos disponibles:', productos.length);
+  
+  renderCategoriesList();
+  
+  // Asegurarse de que el modal sea visible
+  categoriesModal.style.display = 'flex';
+  categoriesModal.style.visibility = 'visible';
+  categoriesModal.style.opacity = '1';
+  
+  // Prevenir scroll del body
+  document.body.style.overflow = 'hidden';
+  
+  console.log('Modal abierto correctamente');
+}
+
+window.closeCategoriesModal = function() {
+  console.log('Cerrando modal de categorías');
+  const categoriesModal = document.getElementById('categoriesModal');
+  if (categoriesModal) {
+    categoriesModal.style.display = 'none';
+    categoriesModal.style.visibility = 'hidden';
+    categoriesModal.style.opacity = '0';
+    
+    // Restaurar scroll del body
+    document.body.style.overflow = '';
+  }
+}
+
+// Cerrar modal al hacer clic fuera
+window.addEventListener('click', (e) => {
+  const categoriesModal = document.getElementById('categoriesModal');
+  if (categoriesModal && e.target === categoriesModal) {
+    console.log('Click fuera del modal, cerrando...');
+    closeCategoriesModal();
+  }
+});
+
+function renderCategoriesList() {
+  console.log('Renderizando lista de categorías');
+  const categories = [...new Set(productos.map(p => p.category))].sort();
+  const categoriesList = document.getElementById('categoriesList');
+  
+  console.log('Categorías encontradas:', categories);
+  
+  if (!categoriesList) {
+    console.error('No se encontró el elemento categoriesList');
+    return;
+  }
+  
+  if (categories.length === 0) {
+    categoriesList.innerHTML = '<div class="empty">No hay categorías.</div>';
+    return;
+  }
+
+  categoriesList.innerHTML = '';
+  categories.forEach(category => {
+    const count = productos.filter(p => p.category === category).length;
+    const categoryItem = document.createElement('div');
+    categoryItem.className = 'category-item';
+    
+    // Escapar comillas para evitar problemas con onclick
+    const safeCategoryName = category.replace(/'/g, "\\'");
+    
+    categoryItem.innerHTML = `
+      <div class="category-info">
+        <h4>${category}</h4>
+        <p class="muted">${count} producto${count !== 1 ? 's' : ''}</p>
+      </div>
+      <button class="btn danger" onclick="deleteCategory('${safeCategoryName}')">🗑️ Eliminar</button>
+    `;
+    categoriesList.appendChild(categoryItem);
+  });
+  
+  console.log('Lista de categorías renderizada:', categories.length, 'categorías');
+}
+
+window.deleteCategory = async function(category) {
+  console.log('Intentando eliminar categoría:', category);
+  
+  // Desescapar las comillas si fueron escapadas
+  const actualCategory = category.replace(/\\'/g, "'");
+  
+  const productsInCategory = productos.filter(p => p.category === actualCategory);
+  const count = productsInCategory.length;
+  
+  console.log('Productos en esta categoría:', count);
+  
+  if (!confirm(`¿Eliminar la categoría "${actualCategory}"?\n\nEsto eliminará ${count} producto${count !== 1 ? 's' : ''} asociado${count !== 1 ? 's' : ''}.`)) {
+    console.log('Eliminación cancelada por el usuario');
+    return;
+  }
+
+  try {
+    console.log('Eliminando productos...');
+    // Eliminar todos los productos de esa categoría
+    for (const producto of productsInCategory) {
+      await deleteDoc(doc(db, "productos", producto.id));
+      console.log('Producto eliminado:', producto.name);
+    }
+
+    // Recargar productos y actualizar interfaz
+    console.log('Recargando productos...');
+    await loadProducts();
+    renderProducts();
+    buildCategoryFilter();
+    renderCategoriesList();
+    
+    alert(`Categoría "${actualCategory}" y ${count} producto${count !== 1 ? 's' : ''} eliminado${count !== 1 ? 's' : ''} correctamente.`);
+    console.log('Categoría eliminada exitosamente');
+  } catch (error) {
+    console.error('Error al eliminar categoría:', error);
+    alert('Error al eliminar la categoría. Por favor, intenta nuevamente.');
+  }
 }
