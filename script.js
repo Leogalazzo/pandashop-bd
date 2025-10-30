@@ -72,7 +72,9 @@ async function loadProducts() {
       
       window.__PANDA_STATE__.products = data;
       buildFilters(data);
-      render(data);
+      applyFilters(); // Usar applyFilters en lugar de render directo
+      
+      // NO validar aquí - se hará al abrir el carrito
       updateCartUI();
       document.getElementById('year').textContent = new Date().getFullYear();
       
@@ -100,7 +102,9 @@ async function loadProducts() {
     window.__PANDA_STATE__.products = data;
     const ageStatus = localStorage.getItem(AGE_KEY);
     buildFilters(data);
-    render(data);
+    applyFilters(); // Usar applyFilters en lugar de render directo
+    
+    // NO validar aquí - se hará al abrir el carrito
     updateCartUI();
     
     // Ocultar loader cuando se cargan productos desde Firebase
@@ -156,6 +160,15 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
   
+  const unavailableItemsModal = document.getElementById('unavailableItemsModal');
+  if (unavailableItemsModal) {
+    unavailableItemsModal.addEventListener('click', (e) => {
+      if (e.target === unavailableItemsModal) {
+        closeUnavailableItemsModal();
+      }
+    });
+  }
+  
   // Cerrar carrito al hacer clic fuera (solo en PC)
   document.addEventListener('click', (e) => {
     const drawer = document.getElementById('cartDrawer');
@@ -163,7 +176,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const isClickInsideDrawer = drawer.contains(e.target);
       const isCartButton = e.target.closest('button[onclick*="toggleCart"]');
       const isInModal = e.target.closest('.alert-backdrop, .alert-modal');
-      if (!isClickInsideDrawer && !isCartButton && !isInModal) {
+      // Excluir botones de cantidad (incr/decr) dentro del carrito
+      const isQtyButton = e.target.tagName === 'BUTTON' && 
+        (e.target.getAttribute('onclick')?.includes('incr(') || 
+         e.target.getAttribute('onclick')?.includes('decr('));
+      if (!isClickInsideDrawer && !isCartButton && !isInModal && !isQtyButton) {
         toggleCart(false);
       }
     }
@@ -180,10 +197,10 @@ function buildFilters(list) {
   const cats = Array.from(new Set(list.map(p => p.category))).sort();
   const filters = document.getElementById('filters');
   filters.innerHTML = '';
-  const allBtn = pill('Todos', true, () => { setActivePill(allBtn); render(list); });
+  const allBtn = pill('Todos', true, () => { setActivePill(allBtn); applyFilters(); });
   filters.appendChild(allBtn);
   cats.forEach(c => {
-    const el = pill(c, false, () => { setActivePill(el); render(list.filter(p => p.category === c)); });
+    const el = pill(c, false, () => { setActivePill(el); applyFilters(); });
     filters.appendChild(el);
   });
 }
@@ -197,45 +214,163 @@ function pill(label, active, onclick) {
 function setActivePill(activeEl) {
   document.querySelectorAll('.pill').forEach(b => b.classList.remove('active'));
   activeEl.classList.add('active');
-  document.getElementById('search').value = '';
+  // NO limpiamos el buscador, solo actualizamos los filtros
 }
 
-// Función para aplicar filtros de búsqueda
+// Función auxiliar para normalizar texto (remover acentos)
+function normalizeText(text) {
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+// Función para aplicar filtros de búsqueda en tiempo real con coincidencias parciales
 window.applyFilters = () => {
   const q = document.getElementById('search').value.trim().toLowerCase();
   const activePill = document.querySelector('.pill.active');
-  if (activePill.textContent === 'Todos') {
-    render(window.__PANDA_STATE__.products);
-  } else {
+  
+  // Obtener lista base según filtro de categoría
+  let baseList = [];
+  if (activePill && activePill.textContent === 'Todos') {
+    baseList = window.__PANDA_STATE__.products;
+  } else if (activePill) {
     const category = activePill.textContent;
-    const filtered = window.__PANDA_STATE__.products.filter(p => p.category === category);
-    render(filtered);
+    baseList = window.__PANDA_STATE__.products.filter(p => p.category === category);
+  } else {
+    baseList = window.__PANDA_STATE__.products;
   }
+  
+  // Si no hay búsqueda, renderizar toda la lista base
+  if (!q) {
+    render(baseList);
+    return;
+  }
+  
+  // Normalizar término de búsqueda (sin acentos)
+  const normalizedQ = normalizeText(q);
+  
+  // Filtrar con coincidencias parciales en nombre, categoría o descripción
+  const filtered = baseList.filter(p => {
+    // Normalizar nombre y categoría del producto
+    const normalizedName = normalizeText(p.name.toLowerCase());
+    const normalizedCategory = normalizeText(p.category.toLowerCase());
+    
+    const nameMatch = normalizedName.includes(normalizedQ);
+    const categoryMatch = normalizedCategory.includes(normalizedQ);
+    
+    // Buscar coincidencias en cada palabra del término de búsqueda
+    const searchTerms = normalizedQ.split(' ').filter(term => term.length > 0);
+    const allTermsMatch = searchTerms.every(term => 
+      normalizedName.includes(term) || 
+      normalizedCategory.includes(term)
+    );
+    
+    return nameMatch || categoryMatch || allTermsMatch;
+  });
+  
+  render(filtered);
 };
 
+// Función auxiliar para resaltar texto de búsqueda (con normalización)
+function highlightSearchText(text, searchQuery) {
+  if (!searchQuery || !searchQuery.trim()) return text;
+  
+  // Normalizar tanto el texto como la búsqueda
+  const normalizedText = normalizeText(text);
+  const normalizedSearch = normalizeText(searchQuery.trim().toLowerCase());
+  
+  const terms = normalizedSearch.split(' ').filter(term => term.length > 0);
+  if (terms.length === 0) return text;
+  
+  // Crear un mapeo de caracteres para encontrar coincidencias
+  // Simplemente buscamos en el texto original usando regex flexible
+  let result = text;
+  
+  terms.forEach(term => {
+    // Crear un patrón regex que coincida con el término normalizado
+    // Buscar cada carácter del término de forma flexible
+    const pattern = term.split('').map(char => {
+      // Para cada carácter, buscar tanto la versión con acento como sin acento
+      // Ejemplo: 'a' coincidirá con 'a', 'á', 'à', etc.
+      if (/[aeiouAEIOU]/.test(char)) {
+        const vowels = {
+          'a': '[aáàäâ]', 'e': '[eéèëê]', 'i': '[iíìïî]', 
+          'o': '[oóòöô]', 'u': '[uúùüû]',
+          'A': '[AaÁáÀàÄäÂâ]', 'E': '[EeÉéÈèËëÊê]', 'I': '[IiÍíÌìÏïÎî]',
+          'O': '[OoÓóÒòÖöÔô]', 'U': '[UuÚúÙùÜüÛû]'
+        };
+        return vowels[char] || char;
+      }
+      return char;
+    }).join('');
+    
+    try {
+      const regex = new RegExp(`(${pattern})`, 'gi');
+      result = result.replace(regex, '<mark>$1</mark>');
+    } catch (e) {
+      // Si hay error en el regex, intentar sin modificaciones
+      const simpleRegex = new RegExp(`(${term})`, 'gi');
+      result = result.replace(simpleRegex, '<mark>$1</mark>');
+    }
+  });
+  
+  return result;
+}
+
 // ==========================================================
-// 🧩 RENDER DE PRODUCTOS (100% funcional con módulo)
+// 🧩 RENDER DE PRODUCTOS (mejorado con resaltado)
 // ==========================================================
 function render(list) {
   const grid = document.getElementById('grid');
-  const q = document.getElementById('search').value.trim().toLowerCase();
-  const filtered = list.filter(p => p.name.toLowerCase().includes(q));
+  const q = document.getElementById('search')?.value.trim().toLowerCase() || '';
   grid.innerHTML = '';
 
-  if (filtered.length === 0) {
+  if (list.length === 0) {
+    const activePill = document.querySelector('.pill.active');
+    const categoryName = activePill && activePill.textContent !== 'Todos' ? activePill.textContent : '';
+    const isSearching = q.length > 0;
+    
     grid.innerHTML = `
-      <div style="grid-column: 1 / -1; text-align: center; padding: 60px;">
-        <div style="font-size: 48px;">🔍</div>
-        <h3>No se encontraron productos</h3>
-        <p class="muted">Intenta con otra búsqueda o cambia el filtro</p>
+      <div class="empty-state">
+        <div class="empty-state-icon">
+          <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="M21 21l-4.35-4.35"></path>
+          </svg>
+        </div>
+        <h2 class="empty-state-title">
+          ${isSearching ? 'No encontramos productos' : categoryName ? `No hay productos en "${categoryName}"` : 'No hay productos'}
+        </h2>
+        <p class="empty-state-description">
+          ${isSearching 
+            ? `No encontramos productos que coincidan con "<strong>${document.getElementById('search').value}</strong>".` 
+            : categoryName 
+              ? 'Esta categoría aún no tiene productos disponibles.' 
+              : 'No hay productos disponibles en este momento.'}
+        </p>
+        <div class="empty-state-suggestions">
+          ${isSearching ? `
+            <span class="suggestion-tag">💡 Prueba con términos más cortos</span>
+            <span class="suggestion-tag">💡 Busca sin acentos</span>
+            <span class="suggestion-tag">💡 Verifica la ortografía</span>
+          ` : ''}
+        </div>
+        <button class="empty-state-btn" onclick="
+          document.getElementById('search').value = '';
+          document.querySelector('.pill.active')?.click();
+        ">
+          ${isSearching ? 'Limpiar búsqueda' : 'Ver todos los productos'}
+        </button>
       </div>`;
     return;
   }
 
-  filtered.forEach(p => {
+  list.forEach(p => {
     const card = document.createElement('article');
     card.className = 'card';
     if (!p.available) card.classList.add('out-of-stock');
+
+    // Resaltar texto si hay búsqueda activa
+    const highlightedName = highlightSearchText(p.name, q);
+    const highlightedCategory = highlightSearchText(p.category, q);
 
     // estructura visual igual que antes
     card.innerHTML = `
@@ -245,14 +380,14 @@ function render(list) {
       </div>
       <div class="card-body">
         <div class="card-content">
-          <div class="title">${p.name}</div>
+          <div class="title">${highlightedName}</div>
           <div class="price-row">
             ${p.originalPrice ? `
               <div class="price-with-old">
                 <div class="old-price">$${formatNumber(p.originalPrice)}</div>
                 <div class="price" style="color:#ff6b35">$${formatNumber(p.price)}</div>
               </div>` : `<div class="price">$${formatNumber(p.price)}</div>`}
-            <div class="muted">${p.category}${p.isAlcohol ? ' · 18+' : ''}</div>
+            <div class="muted">${highlightedCategory}${p.isAlcohol ? ' · 18+' : ''}</div>
           </div>
         </div>
         <button class="btn" ${p.available ? '' : 'disabled'}>Agregar</button>
@@ -347,12 +482,83 @@ function bounceMiniCount() {
   setTimeout(() => el.style.transform = 'scale(1)', 140);
 }
 
+// Función para validar y limpiar productos no disponibles del carrito
+// Retorna el array de productos removidos (nombres)
+function validateCartItems() {
+  const cart = window.__PANDA_STATE__.cart;
+  const products = window.__PANDA_STATE__.products;
+  const removedItems = [];
+  
+  // Si no hay productos cargados aún, no validar
+  if (products.length === 0) return [];
+  
+  // Crear un mapa de productos disponibles por ID
+  const availableProductsMap = {};
+  products.forEach(p => {
+    availableProductsMap[p.id] = p;
+  });
+  
+  // Filtrar y recopilar productos no disponibles
+  window.__PANDA_STATE__.cart = cart.filter(item => {
+    const product = availableProductsMap[item.id];
+    if (!product || !product.available) {
+      removedItems.push(item.name);
+      return false;
+    }
+    return true;
+  });
+  
+  // Si se removieron productos, guardar
+  if (removedItems.length > 0) {
+    saveCart();
+    updateCartUI();
+  }
+  
+  return removedItems;
+}
+
+// Funciones para el modal de productos no disponibles
+window.closeUnavailableItemsModal = () => {
+  document.getElementById('unavailableItemsModal').classList.remove('show');
+};
+
+window.showUnavailableItemsModal = (removedItems) => {
+  const messageEl = document.getElementById('unavailableItemsMessage');
+  const modalEl = document.getElementById('unavailableItemsModal');
+  
+  if (!messageEl || !modalEl) return;
+  
+  let message;
+  
+  if (removedItems.length === 1) {
+    message = `<strong>${removedItems[0]}</strong> ya no está disponible y fue removido de tu carrito.`;
+  } else {
+    const itemsList = removedItems.map(item => `<strong>${item}</strong>`).join(', ');
+    message = `Los siguientes productos ya no están disponibles y fueron removidos de tu carrito:<br><br>${itemsList}`;
+  }
+  
+  messageEl.innerHTML = message;
+  modalEl.classList.add('show');
+};
+
 window.toggleCart = (open) => {
   const drawer = document.getElementById('cartDrawer');
   drawer.classList.toggle('open', !!open);
   drawer.setAttribute('aria-hidden', !open);
   document.body.style.overflow = open ? 'hidden' : '';
+  
+  // Validar productos al abrir el carrito
   if (open) {
+    const removedItems = validateCartItems();
+    
+    // Si hay productos removidos, mostrar modal
+    if (removedItems.length > 0) {
+      // Pequeño delay para que el drawer se abra primero
+      setTimeout(() => {
+        showUnavailableItemsModal(removedItems);
+      }, 300);
+    }
+    
     const drawerBody = drawer.querySelector('.drawer-body');
     if (drawerBody) {
       setTimeout(() => drawerBody.scrollTop = 0, 100);
@@ -490,7 +696,7 @@ function applyAgeRestriction(value){
   if(value==='0'){ 
     const noAlcohol = all.filter(p=>!p.isAlcohol); 
     buildFilters(noAlcohol); 
-    render(noAlcohol);
+    applyFilters(); // Usar applyFilters en lugar de render directo
     
     // Mostrar aviso de modo restringido
     const filters = document.getElementById('filters');
@@ -508,16 +714,6 @@ function applyAgeRestriction(value){
     notice.style.color = '#ff5a5a';
     notice.textContent = 'Modo restringido: solo se muestran productos sin alcohol. Recarga la web para cambiar esta configuración.';
     filters.before(notice);
-    
-    // Actualizar búsqueda para solo buscar en productos sin alcohol
-    const searchInput = document.getElementById('search');
-    if (searchInput) {
-      searchInput.oninput = () => {
-        const q = searchInput.value.trim().toLowerCase();
-        const filtered = noAlcohol.filter(p => p.name.toLowerCase().includes(q));
-        render(filtered);
-      };
-    }
   }
   else { 
     // Remover aviso de modo restringido si existe
@@ -525,13 +721,7 @@ function applyAgeRestriction(value){
     if (existingNotice) existingNotice.remove();
     
     buildFilters(all); 
-    render(all);
-    
-    // Restaurar búsqueda normal
-    const searchInput = document.getElementById('search');
-    if (searchInput) {
-      searchInput.oninput = () => applyFilters();
-    }
+    applyFilters(); // Usar applyFilters en lugar de render directo
   }
 }
 
@@ -544,32 +734,85 @@ window.checkoutWhatsApp = () => {
   const name = document.getElementById("buyerName").value.trim();
   const phone = document.getElementById("buyerPhone").value.trim();
   const address = document.getElementById("buyerAddress").value.trim();
+  const paymentSelect = document.getElementById("buyerPayment");
+  const paymentValue = paymentSelect ? paymentSelect.value.trim() : '';
   const notes = document.getElementById("buyerNotes").value.trim();
 
   if (!name) return showFormAlert("❌ Ingresá tu nombre");
   if (!phone) return showFormAlert("❌ Ingresá tu teléfono");
   if (currentDelivery === "delivery" && !address) return showFormAlert("❌ Ingresá tu dirección");
+  if (!paymentValue) return showFormAlert("❌ Seleccioná una forma de pago");
 
-  const lines = ["*Nuevo pedido*",""];
-  cart.forEach(i=>lines.push(`• ${i.name} x${i.qty} — $${formatNumber(i.price*i.qty)}`));
-  const subtotal=cart.reduce((s,i)=>s+i.price*i.qty,0);
-  const deliveryCost=currentDelivery==='delivery'?1500:0;
-  const total=subtotal+deliveryCost;
-  lines.push(`\n*Subtotal:* $${formatNumber(subtotal)}`);
+  // Calcular totales
+  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  const deliveryCost = currentDelivery === 'delivery' ? 1500 : 0;
+  const total = subtotal + deliveryCost;
+  
+  // Obtener forma de pago desde el select
+  const paymentOption = paymentSelect.options[paymentSelect.selectedIndex];
+  const paymentLabel = paymentOption && paymentOption.text !== 'Forma de pago' ? paymentOption.text : 'Efectivo';
+  
+  // Construir el mensaje desde la perspectiva del cliente
+  const lines = [];
+  
+  lines.push("Hola! Quiero hacer un pedido 🐼");
+  lines.push("");
+  lines.push("━━━━━━━━━━━━━━━━━━━━━━━");
+  lines.push("*📦 PRODUCTOS:*");
+  lines.push("━━━━━━━━━━━━━━━━━━━━━━━");
+  
+  // Lista de productos
+  cart.forEach((i, idx) => {
+    lines.push(`${idx + 1}. ${i.name}`);
+    lines.push(`   ${i.qty}x $${formatNumber(i.price)} = $${formatNumber(i.price * i.qty)}`);
+  });
+  
+  lines.push("━━━━━━━━━━━━━━━━━━━━━━━");
+  
+  // Totales
+  lines.push(`*Subtotal:* $${formatNumber(subtotal)}`);
   if (deliveryCost > 0) {
     lines.push(`*Delivery:* $${formatNumber(deliveryCost)}`);
   }
-  lines.push(`*Total:* $${formatNumber(total)}`);
-  lines.push("\n———");
-  lines.push(`*Nombre:* ${name}`);
-  lines.push(`*Teléfono:* ${phone}`);
-  lines.push(`*Entrega:* ${currentDelivery==='local'?'Retiro':'Delivery'}`);
-  if(currentDelivery==='delivery') lines.push(`*Dirección:* ${address}`);
-  if(notes) lines.push(`*Notas:* ${notes}`);
-  lines.push("\nEnviado desde *pandaonline.com.ar*");
-  const text=encodeURIComponent(lines.join("\n"));
+  lines.push("");
+  lines.push(`*TOTAL: $${formatNumber(total)}*`);
+  lines.push("━━━━━━━━━━━━━━━━━━━━━━━");
+  lines.push("");
+  
+  // Información del cliente
+  lines.push("*👤 Mis datos:*");
+  lines.push(`Nombre: ${name}`);
+  lines.push(`Teléfono: ${phone}`);
+  lines.push(`Forma de entrega: ${currentDelivery === 'local' ? '🏪 Retiro en local' : '🚚 Delivery'}`);
+  if (currentDelivery === 'delivery') {
+    lines.push(`Dirección: ${address}`);
+  }
+  lines.push(`Forma de pago: ${paymentLabel === 'Efectivo' ? '💰 Efectivo' : '💳 Transferencia'}`);
+  
+  if (notes) {
+    lines.push("");
+    lines.push(`*Observaciones:* ${notes}`);
+  }
+  
+  const text = encodeURIComponent(lines.join("\n"));
   window.open(`https://wa.me/${WHATSAPP_PHONE}?text=${text}`,"_blank");
-  window.__PANDA_STATE__.cart=[];saveCart();updateCartUI();
+  
+  // Limpiar carrito
+  window.__PANDA_STATE__.cart = [];
+  saveCart();
+  updateCartUI();
+  
+  // Limpiar formulario
+  document.getElementById("buyerName").value = "";
+  document.getElementById("buyerPhone").value = "";
+  document.getElementById("buyerAddress").value = "";
+  document.getElementById("buyerPayment").value = "";
+  document.getElementById("buyerNotes").value = "";
+  
+  // Resetear forma de entrega
+  if (currentDelivery === 'local') {
+    setDelivery('delivery');
+  }
 };
 
 // ==========================================================
