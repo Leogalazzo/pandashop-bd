@@ -126,6 +126,62 @@ form.image.oninput = () => {
   preview.style.display = form.image.value ? 'block' : 'none';
 };
 
+// --- CÁLCULO AUTOMÁTICO DE PRECIO SEGÚN COSTO Y MARGEN ---
+const costPriceInput = form.elements['costPrice'];
+const marginPercentSelect = form.elements['marginPercent'];
+const priceInput = form.elements['price'];
+const unitsInput = form.elements['unitsPerPack'];
+
+function actualizarPrecioAuto() {
+  const costo = parseFloat(costPriceInput.value);
+  const margen = parseFloat(marginPercentSelect.value);
+  const unidades = parseFloat(unitsInput.value) || 1;
+  if (!isNaN(costo) && !isNaN(margen) && unidades > 0) {
+    const precioUnitario = costo / unidades;
+    const precio = +(precioUnitario * (1 + margen / 100)).toFixed(2);
+    if (!priceInput.dataset.editadoManualmente || priceInput.value === '' || priceInput.value == 0) {
+      priceInput.value = precio;
+    }
+    priceInput.dataset.precioAuto = precio;
+  }
+}
+
+if (costPriceInput && marginPercentSelect && priceInput) {
+  costPriceInput.addEventListener('input', actualizarPrecioAuto);
+  marginPercentSelect.addEventListener('change', actualizarPrecioAuto);
+  priceInput.addEventListener('input', () => {
+    // Marcar cuando el usuario edita manualmente
+    priceInput.dataset.editadoManualmente = 'true';
+  });
+}
+
+if (unitsInput) {
+  unitsInput.addEventListener('input', actualizarPrecioAuto);
+}
+
+// Al abrir modal de agregar producto
+const orig_openAddModal = openAddModal;
+openAddModal = function() {
+  if (priceInput) priceInput.dataset.editadoManualmente = '';
+  if (costPriceInput) costPriceInput.value = '';
+  if (marginPercentSelect) marginPercentSelect.value = '30';
+  if (priceInput) priceInput.value = '';
+  if (unitsInput) unitsInput.value = 1;
+  orig_openAddModal();
+};
+// Al editar producto
+const orig_editProduct = window.editProduct;
+window.editProduct = async function(id) {
+  await orig_editProduct(id);
+  const p = productos.find(x => x.id === id);
+  if (!p) return;
+  if (costPriceInput) costPriceInput.value = p.costPrice || '';
+  if (marginPercentSelect) marginPercentSelect.value = p.marginPercent || '30';
+  if (unitsInput) unitsInput.value = p.unitsPerPack || 1;
+  if (priceInput) priceInput.dataset.editadoManualmente = '';
+  actualizarPrecioAuto();
+};
+// Guardar en BD
 form.onsubmit = async (e) => {
   e.preventDefault();
   const producto = {
@@ -137,18 +193,19 @@ form.onsubmit = async (e) => {
     isAlcohol: form.isAlcohol.checked,
     available: form.available.checked,
     badge: form.badge.value.trim(),
-    fechaSubida: new Date().toISOString()
+    fechaSubida: new Date().toISOString(),
+    costPrice: costPriceInput ? parseFloat(costPriceInput.value) : null,
+    marginPercent: marginPercentSelect ? parseFloat(marginPercentSelect.value) : null,
+    unitsPerPack: unitsInput ? parseInt(unitsInput.value) : 1
   };
-
   if (editId) {
-    await updateDoc(doc(db, "productos", editId), producto);
+    await updateDoc(doc(db, 'productos', editId), producto);
   } else {
-    await addDoc(collection(db, "productos"), producto);
+    await addDoc(collection(db, 'productos'), producto);
   }
-
   await loadProducts();
   renderProducts();
-  buildCategoryFilter(); // Actualizar el datalist después de guardar
+  buildCategoryFilter();
   closeModal();
 };
 
@@ -316,5 +373,31 @@ window.deleteCategory = async function(category) {
   } catch (error) {
     console.error('Error al eliminar categoría:', error);
     alert('Error al eliminar la categoría. Por favor, intenta nuevamente.');
+  }
+}
+
+// Al abrir el modal de producto, bloquear el scroll del body
+definirOpenModalScrollLock();
+function definirOpenModalScrollLock() {
+  const openModalScrollLock = () => { document.body.style.overflow = 'hidden'; };
+  const closeModalScrollLock = () => { document.body.style.overflow = ''; };
+
+  // Interceptar openAddModal (ya redefinido)
+  const prev_openAddModal = openAddModal;
+  openAddModal = function() {
+    openModalScrollLock();
+    prev_openAddModal();
+  };
+
+  // Interceptar closeModal
+  const prev_closeModal = closeModal;
+  closeModal = function() {
+    closeModalScrollLock();
+    prev_closeModal();
+  };
+
+  // Al cerrar modal por cancelar botón u otras acciones 
+  if (form) {
+    form.addEventListener('submit', closeModalScrollLock);
   }
 }
