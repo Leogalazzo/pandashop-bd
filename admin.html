@@ -11,10 +11,10 @@
 <body>
   <header class="admin-header">
     <div class="container admin-nav">
-      <h1>🐼 Panda · Panel de administración</h1>
+      <h1>Panel de administración</h1>
       <div class="admin-actions">
         <input id="searchInput" type="search" placeholder="Buscar producto...">
-        <button id="manageCategoriesBtn" class="btn secondary">📂 Categorías</button>
+        <button id="manageCategoriesBtn" class="btn secondary">Categorías</button>
         <button id="addProductBtn" class="btn primary">+ Agregar producto</button>
       </div>
     </div>
@@ -50,11 +50,31 @@
           <div class="form-section-title">Información básica</div>
           <div class="form-group">
             <label class="form-label required">Nombre del producto</label>
-            <input type="text" id="name" placeholder="Ej: Hamburguesa Clásica" required>
+            <input type="text" id="name" placeholder="Ej: Cepita Fresh" required>
             <div class="form-help">Nombre completo del producto</div>
           </div>
           
           <div class="price-fields">
+            <div class="price-field">
+              <label class="form-label required">Precio de costo</label>
+              <input type="number" id="costPrice" placeholder="0.00" step="0.01">
+              <div class="form-help">Precio de costo del producto</div>
+            </div>
+            <div class="price-field">
+              <label class="form-label required">Unidades por pack</label>
+              <input type="number" id="unitsPerPack" value="1" min="1" step="1">
+              <div class="form-help">¿Cuántas unidades trae el bulto o pack? Ejemplo: 6</div>
+            </div>
+            <div class="price-field">
+              <label class="form-label required">Margen</label>
+              <select id="marginPercent">
+                <option value="30">30%</option>
+                <option value="40">40%</option>
+                <option value="50">50%</option>
+                <option value="100">100%</option>
+              </select>
+              <div class="form-help">Porcentaje de ganancia</div>
+            </div>
             <div class="price-field">
               <label class="form-label required">Precio actual</label>
               <input type="number" id="price" placeholder="0.00" step="0.01" required>
@@ -83,7 +103,7 @@
 
           <div class="form-group">
   <label class="form-label required">Categoría</label>
-  <input type="text" id="category" list="categoryList" placeholder="Ej: Hamburguesas, Bebidas" required>
+  <input type="text" id="category" list="categoryList" placeholder="Ej: Cervezas" required>
   <datalist id="categoryList">
     <!-- Las opciones se generarán automáticamente con JavaScript -->
   </datalist>
@@ -107,7 +127,7 @@
 
           <div class="form-group">
             <label class="form-label">Etiqueta especial</label>
-            <input type="text" id="badge" placeholder="Ej: Oferta, Nuevo, Popular">
+            <input type="text" id="badge" placeholder="Ej: Oferta, Nuevo, Sin Stock">
             <div class="form-help">Aparecerá como badge en el producto</div>
           </div>
         </div>
@@ -130,7 +150,7 @@
     </div>
     <div class="modal-content">
       <div class="categories-info">
-        <p class="muted">Aquí puedes eliminar categorías existentes. Al eliminar una categoría, se eliminarán todos los productos asociados.</p>
+        <p class="muted">Eliminar categorías existentes. Al eliminar una categoría, se eliminarán todos los productos asociados.</p>
       </div>
       <div id="categoriesList" class="categories-list"></div>
     </div>
