@@ -337,6 +337,41 @@ body {
   border-color:#444;
 }
 
+/* Estilos adicionales para input de precio de costo y select de margen */
+#costPrice, #marginPercent {
+  background: var(--input-bg);
+  border: 1px solid #1e1f21;
+  color: #fff;
+  padding: 14px 12px;
+  border-radius: 8px;
+  outline: none;
+  font-size: 16px;
+  transition: border-color 0.2s ease;
+  width: 100%;
+  min-height: 48px;
+  margin-bottom: 8px;
+}
+#costPrice:focus, #marginPercent:focus {
+  border-color: #444;
+}
+
+#unitsPerPack {
+  background: var(--input-bg);
+  border: 1px solid #1e1f21;
+  color: #fff;
+  padding: 14px 12px;
+  border-radius: 8px;
+  outline: none;
+  font-size: 16px;
+  transition: border-color 0.2s ease;
+  width: 100%;
+  min-height: 48px;
+  margin-bottom: 8px;
+}
+#unitsPerPack:focus {
+  border-color: #444;
+}
+
 /* GRUPO DE CHECKBOXES */
 .checkbox-group {
   display:flex;
