@@ -14,6 +14,7 @@
       <h1>Panel de administración</h1>
       <div class="admin-actions">
         <input id="searchInput" type="search" placeholder="Buscar producto...">
+        <button id="generateImageBtn" class="btn secondary">🖼️ Generar</button>
         <button id="manageCategoriesBtn" class="btn secondary">Categorías</button>
         <button id="addProductBtn" class="btn primary">+ Agregar producto</button>
       </div>
@@ -92,22 +93,28 @@
           <div class="form-section-title">Imagen y categoría</div>
           <div class="form-group">
             <label class="form-label required">URL de la imagen</label>
-            <input type="text" id="image" placeholder="https://ejemplo.com/imagen.jpg" required>
-            <div class="form-help">Enlace a la imagen del producto</div>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="image" placeholder="https://ejemplo.com/imagen.jpg" required style="flex: 1;">
+              <input type="file" id="quickImageUpload" accept="image/*" style="display: none;">
+              <button type="button" id="quickUploadBtn" class="btn secondary" onclick="document.getElementById('quickImageUpload').click()" style="white-space: nowrap; flex-shrink: 0;">
+                📤 Subir
+              </button>
+            </div>
+            <div class="form-help">Enlace a la imagen del producto o sube una imagen directamente</div>
           </div>
           
           <div class="preview-container">
             <img id="preview" class="preview" src="" alt="Vista previa">
-            <div class="preview-label">Vista previa de la imagen</div>
+            <div class="preview-label">Vista previa de la imagen (haz clic para abrir)</div>
           </div>
 
           <div class="form-group">
   <label class="form-label required">Categoría</label>
-  <input type="text" id="category" list="categoryList" placeholder="Ej: Cervezas" required>
-  <datalist id="categoryList">
+  <select id="category" required>
+    <option value="" disabled selected>Selecciona una categoría</option>
     <!-- Las opciones se generarán automáticamente con JavaScript -->
-  </datalist>
-  <div class="form-help">Selecciona una categoría existente o escribe una nueva</div>
+  </select>
+  <div class="form-help">Selecciona una categoría. Para agregar nuevas, usa el botón "Categorías" en el header</div>
 </div>
         </div>
 
@@ -150,9 +157,70 @@
     </div>
     <div class="modal-content">
       <div class="categories-info">
-        <p class="muted">Eliminar categorías existentes. Al eliminar una categoría, se eliminarán todos los productos asociados.</p>
+        <p class="muted">Agregar o eliminar categorías. Las categorías agregadas aparecerán en el formulario de productos.</p>
       </div>
+      
+      <!-- Formulario para agregar categoría -->
+      <div class="form-group" style="margin-bottom: 20px;">
+        <label class="form-label">Nueva categoría</label>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="newCategoryInput" placeholder="Ej: Cervezas" class="modal-input-url" style="flex: 1;">
+          <button type="button" class="btn primary" onclick="addCategory()">+ Agregar</button>
+        </div>
+      </div>
+      
       <div id="categoriesList" class="categories-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para ver imagen en tamaño completo -->
+<div id="imageViewerModal" class="image-viewer-backdrop">
+  <div class="image-viewer-container">
+    <button class="image-viewer-close" onclick="closeImageViewer()">✕</button>
+    <img id="imageViewerImg" src="" alt="Imagen completa" class="image-viewer-img">
+  </div>
+</div>
+
+<!-- Modal para generar/subir imagen -->
+<div id="generateImageModal" class="modal-backdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>🖼️ Generar imagen</h2>
+      <button class="close-btn" onclick="closeGenerateImageModal()">✕</button>
+    </div>
+    <div class="modal-content">
+      <div class="form-group">
+        <label class="form-label">Seleccionar imagen</label>
+        <input type="file" id="imageUploadInput" accept="image/*" class="modal-file-input">
+        <div class="form-help">Selecciona una imagen para subir y obtener su URL</div>
+      </div>
+
+      <button id="uploadImageBtn" class="btn primary" onclick="uploadImage()" style="margin-top: 16px;">
+        📤 Subir imagen
+      </button>
+
+      <div id="imageUploadLoading" class="hidden" style="text-align: center; margin-top: 16px; color: var(--sub);">
+        🔄 Subiendo imagen...
+      </div>
+
+      <div id="imageUploadPreview" style="margin-top: 16px; text-align: center;"></div>
+
+      <div id="imageUploadResult" style="margin-top: 16px; display: none;">
+        <div class="form-group">
+          <label class="form-label">URL de la imagen</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="imageUploadUrl" readonly class="modal-input-url">
+            <button class="btn secondary" onclick="copyImageUrl()">📋 Copiar</button>
+          </div>
+          <div id="imageUploadCopyMessage" class="hidden" style="color: #30d158; margin-top: 8px; font-size: 14px;">
+            ✅ ¡Link copiado!
+          </div>
+        </div>
+        <button class="btn primary" onclick="useImageUrl()" style="margin-top: 8px;">
+          ✅ Usar esta URL en el formulario
+        </button>
+      </div>
     </div>
   </div>
 </div>
