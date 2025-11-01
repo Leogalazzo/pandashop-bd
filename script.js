@@ -429,11 +429,21 @@ function openModal(p) {
   document.getElementById("modalPrice").textContent = "$" + formatNumber(p.price);
 
   const addBtn = document.getElementById("modalAddBtn");
-  addBtn.onclick = () => { 
-    window.addToCart(p); 
-    closeModal(); 
-    showToast("Producto agregado al carrito"); 
-  };
+  
+  // Verificar disponibilidad del producto
+  if (!p.available) {
+    addBtn.textContent = "Sin stock";
+    addBtn.disabled = true;
+    addBtn.onclick = null;
+  } else {
+    addBtn.textContent = "Agregar";
+    addBtn.disabled = false;
+    addBtn.onclick = () => { 
+      window.addToCart(p); 
+      closeModal(); 
+      showToast("Producto agregado al carrito"); 
+    };
+  }
 }
 
 function closeModal() {
@@ -690,7 +700,7 @@ window.setDelivery = (type) => {
 function showAgeGate(){ document.getElementById('ageBackdrop').classList.add('show'); }
 function hideAgeGate(){ document.getElementById('ageBackdrop').classList.remove('show'); }
 window.acceptAge = ()=>{ localStorage.setItem(AGE_KEY,'1'); hideAgeGate(); applyAgeRestriction('1'); }
-window.denyAge = ()=>{ hideAgeGate(); applyAgeRestriction('0'); }
+window.denyAge = ()=>{ localStorage.setItem(AGE_KEY,'0'); hideAgeGate(); applyAgeRestriction('0'); }
 function applyAgeRestriction(value){
   const all = window.__PANDA_STATE__.products;
   if(value==='0'){ 
@@ -706,13 +716,18 @@ function applyAgeRestriction(value){
     
     const notice = document.createElement('div');
     notice.id = 'restricted-mode-notice';
-    notice.style.padding = '10px';
-    notice.style.background = '#222';
-    notice.style.borderRadius = '10px';
-    notice.style.marginBottom = '12px';
+    notice.style.padding = '14px 16px';
+    notice.style.background = 'rgba(255, 90, 90, 0.15)';
+    notice.style.border = '1px solid #ff5a5a';
+    notice.style.borderRadius = '12px';
+    notice.style.marginTop = '16px';
+    notice.style.marginBottom = '16px';
     notice.style.fontSize = '14px';
+    notice.style.fontWeight = '600';
     notice.style.color = '#ff5a5a';
-    notice.textContent = 'Modo restringido: solo se muestran productos sin alcohol. Recarga la web para cambiar esta configuración.';
+    notice.style.textAlign = 'center';
+    notice.style.boxShadow = '0 2px 8px rgba(255, 90, 90, 0.2)';
+    notice.textContent = '⚠️ Modo restringido: solo se muestran productos sin alcohol. Borra el caché para cambiar esta configuración.';
     filters.before(notice);
   }
   else { 
