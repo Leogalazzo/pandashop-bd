@@ -108,9 +108,16 @@
     color: #666;
   }
   .card.out-of-stock .btn {
-    background: #333;
-    color: #666;
-    cursor: not-allowed;
+    background: #1a1a1a !important;
+    color: #666 !important;
+    cursor: not-allowed !important;
+    opacity: 0.5 !important;
+  }
+  .card.out-of-stock .btn:disabled {
+    background: #1a1a1a !important;
+    color: #666 !important;
+    cursor: not-allowed !important;
+    opacity: 0.5 !important;
   }
   .card.out-of-stock .card-img {
     cursor: default;
