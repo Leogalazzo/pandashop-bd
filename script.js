@@ -54,7 +54,7 @@ function loadCart() {
   }
 }
 
-window.__PANDA_STATE__ = { products: [], cart: loadCart() };
+window.__PANDA_STATE__ = { products: [], cart: loadCart(), ageRestricted: false };
 
 // ==========================================================
 // 🚀 CARGA DE PRODUCTOS DESDE FIRESTORE (con cache)
@@ -72,7 +72,10 @@ async function loadProducts() {
       
       window.__PANDA_STATE__.products = data;
       buildFilters(data);
-      applyFilters(); // Usar applyFilters en lugar de render directo
+      
+      // Mostrar TODOS los productos primero (sin filtro de edad)
+      window.__PANDA_STATE__.ageRestricted = false;
+      applyFilters();
       
       // NO validar aquí - se hará al abrir el carrito
       updateCartUI();
@@ -81,8 +84,13 @@ async function loadProducts() {
       // Ocultar loader cuando se cargan productos desde cache
       hidePageLoader();
       
-      if (ageStatus === null) showAgeGate();
-      else applyAgeRestriction(ageStatus);
+      // Solo mostrar modal si no hay confirmación guardada (solo '1' significa confirmado)
+      // El modal aparecerá sobre los productos ya mostrados
+      if (ageStatus !== '1') {
+        showAgeGate();
+      } else {
+        applyAgeRestriction(ageStatus);
+      }
     } catch(e) {
       console.error("Error cargando cache:", e);
     }
@@ -102,7 +110,10 @@ async function loadProducts() {
     window.__PANDA_STATE__.products = data;
     const ageStatus = localStorage.getItem(AGE_KEY);
     buildFilters(data);
-    applyFilters(); // Usar applyFilters en lugar de render directo
+    
+    // Mostrar TODOS los productos primero (sin filtro de edad)
+    window.__PANDA_STATE__.ageRestricted = false;
+    applyFilters();
     
     // NO validar aquí - se hará al abrir el carrito
     updateCartUI();
@@ -110,8 +121,13 @@ async function loadProducts() {
     // Ocultar loader cuando se cargan productos desde Firebase
     hidePageLoader();
     
-    if (ageStatus === null) showAgeGate();
-    else applyAgeRestriction(ageStatus);
+    // Solo mostrar modal si no hay confirmación guardada (solo '1' significa confirmado)
+    // El modal aparecerá sobre los productos ya mostrados
+    if (ageStatus !== '1') {
+      showAgeGate();
+    } else {
+      applyAgeRestriction(ageStatus);
+    }
   } catch (error) {
     console.error("Error cargando productos:", error);
     if (!cachedData) {
@@ -236,6 +252,11 @@ window.applyFilters = () => {
     baseList = window.__PANDA_STATE__.products.filter(p => p.category === category);
   } else {
     baseList = window.__PANDA_STATE__.products;
+  }
+  
+  // Aplicar filtro de edad si está activo
+  if (window.__PANDA_STATE__.ageRestricted) {
+    baseList = baseList.filter(p => !p.isAlcohol);
   }
   
   // Si no hay búsqueda, renderizar toda la lista base
@@ -366,7 +387,12 @@ function render(list) {
   list.forEach(p => {
     const card = document.createElement('article');
     card.className = 'card';
-    if (!p.available) card.classList.add('out-of-stock');
+    
+    // Verificar si está sin stock (por available o por badge)
+    const isOutOfStock = !p.available || 
+      (p.badge && p.badge.toLowerCase().includes('sin stock'));
+    
+    if (isOutOfStock) card.classList.add('out-of-stock');
 
     // Resaltar texto si hay búsqueda activa
     const highlightedName = highlightSearchText(p.name, q);
@@ -390,7 +416,7 @@ function render(list) {
             <div class="muted">${highlightedCategory}${p.isAlcohol ? ' · 18+' : ''}</div>
           </div>
         </div>
-        <button class="btn" ${p.available ? '' : 'disabled'}>Agregar</button>
+        <button class="btn" ${isOutOfStock ? 'disabled' : ''}>Agregar</button>
       </div>`;
 
     // EVENTOS
@@ -398,7 +424,7 @@ function render(list) {
     const titleDiv = card.querySelector(".title");
     const btn = card.querySelector(".btn");
 
-    if (p.available) {
+    if (!isOutOfStock) {
       imgDiv.style.cursor = 'pointer';
       imgDiv.addEventListener("click", () => window.openModal(p));
       titleDiv.style.cursor = 'pointer';
@@ -430,8 +456,11 @@ function openModal(p) {
 
   const addBtn = document.getElementById("modalAddBtn");
   
-  // Verificar disponibilidad del producto
-  if (!p.available) {
+  // Verificar disponibilidad del producto (por available o por badge)
+  const isOutOfStock = !p.available || 
+    (p.badge && p.badge.toLowerCase().includes('sin stock'));
+  
+  if (isOutOfStock) {
     addBtn.textContent = "Sin stock";
     addBtn.disabled = true;
     addBtn.onclick = null;
@@ -449,7 +478,11 @@ function openModal(p) {
 function closeModal() {
   const modal = document.getElementById("productModal");
   modal.classList.remove("show");
-  document.body.style.overflow = "";
+  // Solo restaurar scroll si no hay otros modales abiertos
+  const hasOpenModal = document.querySelector('.alert-backdrop.show, .modal-backdrop.show, .drawer.open');
+  if (!hasOpenModal) {
+    document.body.style.overflow = '';
+  }
 }
 
 // Exponer globalmente
@@ -477,6 +510,15 @@ function saveCart() {
 }
 
 window.addToCart = (p) => {
+  // Validar que el producto esté disponible (por available o por badge)
+  const isOutOfStock = !p.available || 
+    (p.badge && p.badge.toLowerCase().includes('sin stock'));
+  
+  if (isOutOfStock) {
+    showToast("Este producto no está disponible");
+    return;
+  }
+  
   const cart = window.__PANDA_STATE__.cart;
   const idx = cart.findIndex(i => i.id === p.id);
   if (idx > -1) cart[idx].qty++;
@@ -511,7 +553,10 @@ function validateCartItems() {
   // Filtrar y recopilar productos no disponibles
   window.__PANDA_STATE__.cart = cart.filter(item => {
     const product = availableProductsMap[item.id];
-    if (!product || !product.available) {
+    const isOutOfStock = !product || !product.available || 
+      (product.badge && product.badge.toLowerCase().includes('sin stock'));
+    
+    if (isOutOfStock) {
       removedItems.push(item.name);
       return false;
     }
@@ -530,6 +575,11 @@ function validateCartItems() {
 // Funciones para el modal de productos no disponibles
 window.closeUnavailableItemsModal = () => {
   document.getElementById('unavailableItemsModal').classList.remove('show');
+  // Solo restaurar scroll si no hay otros modales abiertos
+  const hasOpenModal = document.querySelector('.alert-backdrop.show, .modal-backdrop.show, .drawer.open');
+  if (!hasOpenModal) {
+    document.body.style.overflow = '';
+  }
 };
 
 window.showUnavailableItemsModal = (removedItems) => {
@@ -549,13 +599,23 @@ window.showUnavailableItemsModal = (removedItems) => {
   
   messageEl.innerHTML = message;
   modalEl.classList.add('show');
+  document.body.style.overflow = 'hidden';
 };
 
 window.toggleCart = (open) => {
   const drawer = document.getElementById('cartDrawer');
   drawer.classList.toggle('open', !!open);
   drawer.setAttribute('aria-hidden', !open);
-  document.body.style.overflow = open ? 'hidden' : '';
+  
+  if (open) {
+    document.body.style.overflow = 'hidden';
+  } else {
+    // Solo restaurar scroll si no hay otros modales abiertos
+    const hasOpenModal = document.querySelector('.alert-backdrop.show, .modal-backdrop.show');
+    if (!hasOpenModal) {
+      document.body.style.overflow = '';
+    }
+  }
   
   // Validar productos al abrir el carrito
   if (open) {
@@ -580,13 +640,26 @@ window.clearCart = () => {
   const cart = window.__PANDA_STATE__.cart;
   if (cart.length === 0) return;
   document.getElementById('clearCartModal').classList.add('show');
+  document.body.style.overflow = 'hidden';
 };
-window.closeClearCartModal = () => document.getElementById('clearCartModal').classList.remove('show');
+window.closeClearCartModal = () => {
+  document.getElementById('clearCartModal').classList.remove('show');
+  // Solo restaurar scroll si no hay otros modales abiertos
+  const hasOpenModal = document.querySelector('.alert-backdrop.show, .modal-backdrop.show, .drawer.open');
+  if (!hasOpenModal) {
+    document.body.style.overflow = '';
+  }
+};
 window.confirmClearCart = () => {
   window.__PANDA_STATE__.cart = [];
   saveCart();
   updateCartUI();
   document.getElementById('clearCartModal').classList.remove('show');
+  // Solo restaurar scroll si no hay otros modales abiertos
+  const hasOpenModal = document.querySelector('.alert-backdrop.show, .modal-backdrop.show, .drawer.open');
+  if (!hasOpenModal) {
+    document.body.style.overflow = '';
+  }
 };
 
 // ==========================================================
@@ -599,18 +672,30 @@ window.openDeleteItemModal = (id) => {
     pendingDeleteId = id;
     document.getElementById('deleteItemMessage').textContent = `¿Estás seguro de eliminar "${item.name}" del carrito?`;
     document.getElementById('deleteItemModal').classList.add('show');
+    document.body.style.overflow = 'hidden';
   }
 };
 window.closeDeleteItemModal = () => {
   document.getElementById('deleteItemModal').classList.remove('show');
   pendingDeleteId = null;
+  // Solo restaurar scroll si no hay otros modales abiertos
+  const hasOpenModal = document.querySelector('.alert-backdrop.show, .modal-backdrop.show, .drawer.open');
+  if (!hasOpenModal) {
+    document.body.style.overflow = '';
+  }
 };
 window.confirmDeleteItem = () => {
   if (pendingDeleteId) {
     window.__PANDA_STATE__.cart = window.__PANDA_STATE__.cart.filter(x => x.id !== pendingDeleteId);
     saveCart();
     updateCartUI();
-    closeDeleteItemModal();
+    document.getElementById('deleteItemModal').classList.remove('show');
+    pendingDeleteId = null;
+    // Solo restaurar scroll si no hay otros modales abiertos
+    const hasOpenModal = document.querySelector('.alert-backdrop.show, .modal-backdrop.show, .drawer.open');
+    if (!hasOpenModal) {
+      document.body.style.overflow = '';
+    }
   }
 };
 
@@ -697,16 +782,37 @@ window.setDelivery = (type) => {
 // ==========================================================
 // 🔞 VERIFICACIÓN DE EDAD
 // ==========================================================
-function showAgeGate(){ document.getElementById('ageBackdrop').classList.add('show'); }
-function hideAgeGate(){ document.getElementById('ageBackdrop').classList.remove('show'); }
-window.acceptAge = ()=>{ localStorage.setItem(AGE_KEY,'1'); hideAgeGate(); applyAgeRestriction('1'); }
-window.denyAge = ()=>{ localStorage.setItem(AGE_KEY,'0'); hideAgeGate(); applyAgeRestriction('0'); }
+function showAgeGate(){ 
+  document.getElementById('ageBackdrop').classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+function hideAgeGate(){ 
+  document.getElementById('ageBackdrop').classList.remove('show');
+  // Solo restaurar scroll si no hay otros modales abiertos
+  const hasOpenModal = document.querySelector('.alert-backdrop.show, .modal-backdrop.show, .drawer.open');
+  if (!hasOpenModal) {
+    document.body.style.overflow = '';
+  }
+}
+window.acceptAge = ()=>{ 
+  localStorage.setItem(AGE_KEY,'1'); 
+  hideAgeGate(); 
+  applyAgeRestriction('1'); 
+}
+window.denyAge = ()=>{ 
+  // NO guardar en localStorage cuando dice que no (solo sesión actual)
+  localStorage.removeItem(AGE_KEY);
+  hideAgeGate(); 
+  applyAgeRestriction('0'); 
+}
 function applyAgeRestriction(value){
   const all = window.__PANDA_STATE__.products;
   if(value==='0'){ 
-    const noAlcohol = all.filter(p=>!p.isAlcohol); 
+    window.__PANDA_STATE__.ageRestricted = true;
+    // Filtrar solo productos sin alcohol para las categorías
+    const noAlcohol = all.filter(p=>!p.isAlcohol);
     buildFilters(noAlcohol); 
-    applyFilters(); // Usar applyFilters en lugar de render directo
+    applyFilters(); // Aplicar filtros que incluirán el filtro de edad
     
     // Mostrar aviso de modo restringido
     const filters = document.getElementById('filters');
@@ -727,10 +833,11 @@ function applyAgeRestriction(value){
     notice.style.color = '#ff5a5a';
     notice.style.textAlign = 'center';
     notice.style.boxShadow = '0 2px 8px rgba(255, 90, 90, 0.2)';
-    notice.textContent = '⚠️ Modo restringido: solo se muestran productos sin alcohol. Borra el caché para cambiar esta configuración.';
+    notice.textContent = '⚠️ Modo restringido: solo se muestran productos sin alcohol. Recarga la página para cambiar esta configuración.';
     filters.before(notice);
   }
   else { 
+    window.__PANDA_STATE__.ageRestricted = false;
     // Remover aviso de modo restringido si existe
     const existingNotice = document.querySelector('#restricted-mode-notice');
     if (existingNotice) existingNotice.remove();
