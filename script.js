@@ -22,6 +22,17 @@ const db = getFirestore(app);
 const WHATSAPP_PHONE = '5493644539325';
 const AGE_KEY = 'panda_age_ok';
 
+// Orden personalizado de categorías (debes agregar todas las categorías que uses)
+// Si una categoría no está en este array, se agregará al final
+const CATEGORY_ORDER = [
+  'Todos', // Este se agrega automáticamente primero, pero lo incluimos por si acaso
+  'Promociones',
+  // 'Cervezas',
+  // 'Gaseosas',
+  // 'Promociones',
+  // etc...
+];
+
 // Control de tiempo mínimo del loader
 const LOADER_START_TIME = Date.now();
 const MIN_LOADER_TIME = 2000; // 2 segundos mínimo
@@ -210,7 +221,27 @@ document.addEventListener("DOMContentLoaded", () => {
 // 🛒 FILTROS Y PRODUCTOS
 // ==========================================================
 function buildFilters(list) {
-  const cats = Array.from(new Set(list.map(p => p.category))).sort();
+  // Obtener todas las categorías únicas
+  const allCats = Array.from(new Set(list.map(p => p.category)));
+  
+  // Ordenar según el orden personalizado
+  const orderedCats = [];
+  const unorderedCats = [];
+  
+  // Separar categorías ordenadas y no ordenadas
+  allCats.forEach(cat => {
+    const index = CATEGORY_ORDER.indexOf(cat);
+    if (index >= 0) {
+      orderedCats[index] = cat;
+    } else {
+      unorderedCats.push(cat);
+    }
+  });
+  
+  // Filtrar undefined y agregar las no ordenadas al final (alfabéticamente)
+  const cats = orderedCats.filter(c => c !== undefined)
+    .concat(unorderedCats.sort());
+  
   const filters = document.getElementById('filters');
   filters.innerHTML = '';
   const allBtn = pill('Todos', true, () => { setActivePill(allBtn); applyFilters(); });
@@ -401,7 +432,14 @@ function render(list) {
     // estructura visual igual que antes
     card.innerHTML = `
       <div class="card-img">
-        ${p.badge ? `<span class="badge">${p.badge}</span>` : ''}
+        ${p.badge ? (() => {
+          const badgeColor = p.badgeColor || '#ff6b35';
+          const isGradient = badgeColor.includes('gradient');
+          const bgStyle = isGradient ? `background:${badgeColor}` : 'background:#0a0a0a';
+          const colorStyle = isGradient ? 'color:#fff' : `color:${badgeColor}`;
+          const borderStyle = isGradient ? `border-color:transparent` : `border-color:${badgeColor}`;
+          return `<span class="badge" style="${bgStyle};${colorStyle};${borderStyle}">${p.badge}</span>`;
+        })() : ''}
         <img src="${p.image}" alt="${p.name}">
       </div>
       <div class="card-body">
@@ -448,7 +486,6 @@ function render(list) {
 function openModal(p) {
   const modal = document.getElementById("productModal");
   modal.classList.add("show");
-  document.body.style.overflow = "hidden";
   document.getElementById("modalImage").src = p.image;
   document.getElementById("modalTitle").textContent = p.name;
   document.getElementById("modalCategory").textContent = p.category + (p.isAlcohol ? " · 18+" : "");
@@ -478,11 +515,6 @@ function openModal(p) {
 function closeModal() {
   const modal = document.getElementById("productModal");
   modal.classList.remove("show");
-  // Solo restaurar scroll si no hay otros modales abiertos
-  const hasOpenModal = document.querySelector('.alert-backdrop.show, .modal-backdrop.show, .drawer.open');
-  if (!hasOpenModal) {
-    document.body.style.overflow = '';
-  }
 }
 
 // Exponer globalmente
@@ -575,11 +607,6 @@ function validateCartItems() {
 // Funciones para el modal de productos no disponibles
 window.closeUnavailableItemsModal = () => {
   document.getElementById('unavailableItemsModal').classList.remove('show');
-  // Solo restaurar scroll si no hay otros modales abiertos
-  const hasOpenModal = document.querySelector('.alert-backdrop.show, .modal-backdrop.show, .drawer.open');
-  if (!hasOpenModal) {
-    document.body.style.overflow = '';
-  }
 };
 
 window.showUnavailableItemsModal = (removedItems) => {
@@ -599,23 +626,12 @@ window.showUnavailableItemsModal = (removedItems) => {
   
   messageEl.innerHTML = message;
   modalEl.classList.add('show');
-  document.body.style.overflow = 'hidden';
 };
 
 window.toggleCart = (open) => {
   const drawer = document.getElementById('cartDrawer');
   drawer.classList.toggle('open', !!open);
   drawer.setAttribute('aria-hidden', !open);
-  
-  if (open) {
-    document.body.style.overflow = 'hidden';
-  } else {
-    // Solo restaurar scroll si no hay otros modales abiertos
-    const hasOpenModal = document.querySelector('.alert-backdrop.show, .modal-backdrop.show');
-    if (!hasOpenModal) {
-      document.body.style.overflow = '';
-    }
-  }
   
   // Validar productos al abrir el carrito
   if (open) {
@@ -640,26 +656,15 @@ window.clearCart = () => {
   const cart = window.__PANDA_STATE__.cart;
   if (cart.length === 0) return;
   document.getElementById('clearCartModal').classList.add('show');
-  document.body.style.overflow = 'hidden';
 };
 window.closeClearCartModal = () => {
   document.getElementById('clearCartModal').classList.remove('show');
-  // Solo restaurar scroll si no hay otros modales abiertos
-  const hasOpenModal = document.querySelector('.alert-backdrop.show, .modal-backdrop.show, .drawer.open');
-  if (!hasOpenModal) {
-    document.body.style.overflow = '';
-  }
 };
 window.confirmClearCart = () => {
   window.__PANDA_STATE__.cart = [];
   saveCart();
   updateCartUI();
   document.getElementById('clearCartModal').classList.remove('show');
-  // Solo restaurar scroll si no hay otros modales abiertos
-  const hasOpenModal = document.querySelector('.alert-backdrop.show, .modal-backdrop.show, .drawer.open');
-  if (!hasOpenModal) {
-    document.body.style.overflow = '';
-  }
 };
 
 // ==========================================================
@@ -672,17 +677,11 @@ window.openDeleteItemModal = (id) => {
     pendingDeleteId = id;
     document.getElementById('deleteItemMessage').textContent = `¿Estás seguro de eliminar "${item.name}" del carrito?`;
     document.getElementById('deleteItemModal').classList.add('show');
-    document.body.style.overflow = 'hidden';
   }
 };
 window.closeDeleteItemModal = () => {
   document.getElementById('deleteItemModal').classList.remove('show');
   pendingDeleteId = null;
-  // Solo restaurar scroll si no hay otros modales abiertos
-  const hasOpenModal = document.querySelector('.alert-backdrop.show, .modal-backdrop.show, .drawer.open');
-  if (!hasOpenModal) {
-    document.body.style.overflow = '';
-  }
 };
 window.confirmDeleteItem = () => {
   if (pendingDeleteId) {
@@ -691,11 +690,6 @@ window.confirmDeleteItem = () => {
     updateCartUI();
     document.getElementById('deleteItemModal').classList.remove('show');
     pendingDeleteId = null;
-    // Solo restaurar scroll si no hay otros modales abiertos
-    const hasOpenModal = document.querySelector('.alert-backdrop.show, .modal-backdrop.show, .drawer.open');
-    if (!hasOpenModal) {
-      document.body.style.overflow = '';
-    }
   }
 };
 
@@ -784,15 +778,9 @@ window.setDelivery = (type) => {
 // ==========================================================
 function showAgeGate(){ 
   document.getElementById('ageBackdrop').classList.add('show');
-  document.body.style.overflow = 'hidden';
 }
 function hideAgeGate(){ 
   document.getElementById('ageBackdrop').classList.remove('show');
-  // Solo restaurar scroll si no hay otros modales abiertos
-  const hasOpenModal = document.querySelector('.alert-backdrop.show, .modal-backdrop.show, .drawer.open');
-  if (!hasOpenModal) {
-    document.body.style.overflow = '';
-  }
 }
 window.acceptAge = ()=>{ 
   localStorage.setItem(AGE_KEY,'1'); 
@@ -951,14 +939,43 @@ window.scrollToTop = () => {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
-// Mostrar/ocultar botón scroll to top
+// Variables para controlar el header
+let lastScrollTop = 0;
+
+// Mostrar/ocultar botón scroll to top y header
 window.addEventListener('scroll', () => {
   const scrollTopBtn = document.getElementById('scrollTopBtn');
+  const header = document.querySelector('header');
+  
+  const currentScroll = window.pageYOffset || document.documentElement.scrollTop;
+  
+  // Control del botón scroll to top
   if (scrollTopBtn) {
-    if (window.pageYOffset > 300) {
+    if (currentScroll > 300) {
       scrollTopBtn.classList.add('show');
     } else {
       scrollTopBtn.classList.remove('show');
     }
+  }
+  
+  // Control del header: ocultar al hacer scroll hacia abajo, mostrar al subir
+  if (header) {
+    // Si está en el top, siempre mostrar
+    if (currentScroll <= 10) {
+      header.classList.remove('hidden');
+      lastScrollTop = currentScroll;
+      return;
+    }
+    
+    // Si está scrolleando hacia abajo y ha pasado cierto umbral
+    if (currentScroll > lastScrollTop && currentScroll > 100) {
+      // Scroll hacia abajo - ocultar
+      header.classList.add('hidden');
+    } else if (currentScroll < lastScrollTop) {
+      // Scroll hacia arriba - mostrar
+      header.classList.remove('hidden');
+    }
+    
+    lastScrollTop = currentScroll;
   }
 });
