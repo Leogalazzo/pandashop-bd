@@ -67,7 +67,67 @@ document.addEventListener("DOMContentLoaded", async () => {
   filterCategory.onchange = applyFilters;
   filterAvailability.onchange = applyFilters;
   scrollTopBtn.onclick = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+  
+  // Gestión de colores de badges
+  const badgeInput = document.getElementById('badge');
+  const badgeColorInput = document.getElementById('badgeColor');
+  const badgeColorTextInput = document.getElementById('badgeColorInput');
+  const badgeColorGroup = document.getElementById('badgeColorGroup');
+  
+  if (badgeInput) {
+    badgeInput.addEventListener('input', (e) => {
+      updateBadgeColorGroup(e.target.value);
+    });
+  }
+  
+  // Sincronizar input de color con campo de texto
+  if (badgeColorInput && badgeColorTextInput) {
+    badgeColorInput.addEventListener('input', (e) => {
+      // Solo actualizar si es un color sólido (no degradado)
+      const color = e.target.value;
+      if (badgeColorTextInput.value && !badgeColorTextInput.value.includes('gradient')) {
+        badgeColorTextInput.value = color;
+      }
+    });
+    
+    // Permitir escribir directamente en el campo de texto
+    badgeColorTextInput.addEventListener('input', (e) => {
+      const value = e.target.value.trim();
+      // Si es un color hexadecimal válido, actualizar el selector de color
+      if (/^#[0-9A-Fa-f]{6}$/.test(value) && !value.includes('gradient')) {
+        badgeColorInput.value = value;
+      }
+    });
+  }
+  
+  // Presets de color sólidos
+  document.querySelectorAll('.badge-color-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const color = btn.getAttribute('data-color');
+      if (badgeColorInput) badgeColorInput.value = color;
+      if (badgeColorTextInput) badgeColorTextInput.value = color;
+    });
+  });
+  
+  // Presets de degradados
+  document.querySelectorAll('.badge-gradient-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const gradient = btn.getAttribute('data-gradient');
+      if (badgeColorTextInput) badgeColorTextInput.value = gradient;
+    });
+  });
 });
+
+function updateBadgeColorGroup(badgeText) {
+  const badgeColorGroup = document.getElementById('badgeColorGroup');
+  if (badgeColorGroup) {
+    if (badgeText && badgeText.trim()) {
+      badgeColorGroup.style.display = 'block';
+    } else {
+      badgeColorGroup.style.display = 'none';
+    }
+  }
+}
 
 async function loadCategories() {
   try {
@@ -126,7 +186,14 @@ function renderProducts(list = productos) {
         <p class="muted">${p.category}${p.isAlcohol ? ' · 18+' : ''}</p>
         <p class="price">$${p.price.toLocaleString()}</p>
         ${p.originalPrice ? `<p class="old-price">$${p.originalPrice.toLocaleString()}</p>` : ''}
-        ${p.badge ? `<span class="badge">${p.badge}</span>` : ''}
+        ${p.badge ? (() => {
+          const badgeColor = p.badgeColor || '#ff6b35';
+          const isGradient = badgeColor.includes('gradient');
+          const bgStyle = isGradient ? `background:${badgeColor}` : 'background:#0a0a0a';
+          const colorStyle = isGradient ? 'color:#fff' : `color:${badgeColor}`;
+          const borderStyle = isGradient ? `border-color:transparent` : `border-color:${badgeColor}`;
+          return `<span class="badge" style="${bgStyle};${colorStyle};${borderStyle}">${p.badge}</span>`;
+        })() : ''}
         <div class="actions">
           <button class="btn secondary" onclick="editProduct('${p.id}')">Editar</button>
           <button class="btn danger" onclick="deleteProduct('${p.id}')">Eliminar</button>
@@ -165,6 +232,24 @@ window.editProduct = async (id) => {
   form.isAlcohol.checked = p.isAlcohol;
   form.available.checked = p.available;
   form.badge.value = p.badge || '';
+  const badgeColorInput = document.getElementById('badgeColor');
+  const badgeColorTextInput = document.getElementById('badgeColorInput');
+  const savedColor = p.badgeColor || '#ff6b35';
+  
+  if (badgeColorTextInput) {
+    badgeColorTextInput.value = savedColor;
+  }
+  
+  if (badgeColorInput) {
+    // Si es un degradado, no actualizar el selector de color (solo muestra colores sólidos)
+    if (!savedColor.includes('gradient') && /^#[0-9A-Fa-f]{6}$/.test(savedColor)) {
+      badgeColorInput.value = savedColor;
+    } else {
+      badgeColorInput.value = '#ff6b35'; // Valor por defecto para el selector
+    }
+  }
+  
+  updateBadgeColorGroup(p.badge || '');
   preview.src = p.image;
   preview.style.display = 'block';
   // Bloquear scroll del body
@@ -202,6 +287,12 @@ function openAddModal() {
   form.reset();
   modalTitle.textContent = "Agregar producto";
   preview.style.display = 'none';
+  // Resetear badge color
+  const badgeColorInput = document.getElementById('badgeColor');
+  const badgeColorTextInput = document.getElementById('badgeColorInput');
+  if (badgeColorInput) badgeColorInput.value = '#ff6b35';
+  if (badgeColorTextInput) badgeColorTextInput.value = '#ff6b35';
+  updateBadgeColorGroup('');
   // Bloquear scroll del body
   document.body.style.overflow = 'hidden';
   modal.style.display = 'flex';
@@ -489,6 +580,7 @@ form.onsubmit = async (e) => {
     isAlcohol: form.isAlcohol.checked,
     available: form.available.checked,
     badge: form.badge.value.trim(),
+    badgeColor: document.getElementById('badgeColorInput')?.value.trim() || document.getElementById('badgeColor')?.value || '#ff6b35',
     fechaSubida: new Date().toISOString(),
     costPrice: costPriceInput ? parseFloat(costPriceInput.value) : null,
     marginPercent: marginPercentSelect ? parseFloat(marginPercentSelect.value) : null,
