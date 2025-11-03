@@ -215,6 +215,24 @@ document.addEventListener("DOMContentLoaded", () => {
   
   // Cargar productos
   loadProducts();
+  
+  // Inicializar banner carousel (se inicializará cuando la API de YouTube esté lista)
+  if (window.YT && window.YT.Player) {
+    initBanner();
+  } else {
+    // Si la API ya está lista, inicializar
+    if (typeof onYouTubeIframeAPIReady === 'undefined') {
+      window.onYouTubeIframeAPIReady = function() {
+        initBanner();
+      };
+    }
+    // Si la API ya se cargó antes, inicializar directamente
+    setTimeout(() => {
+      if (window.YT && window.YT.Player) {
+        initBanner();
+      }
+    }, 1000);
+  }
 });
 
 // ==========================================================
@@ -931,6 +949,361 @@ window.checkoutWhatsApp = () => {
 function formatNumber(n){return new Intl.NumberFormat('es-AR').format(Math.round(n));}
 function showToast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),1800);}
 function showFormAlert(m){const a=document.getElementById('formAlert');const msg=document.getElementById('formAlertMessage');msg.textContent=m;a.classList.add('show');setTimeout(()=>a.classList.remove('show'),2500);}
+
+// ==========================================================
+// 🎠 BANNER CAROUSEL
+// ==========================================================
+let currentSlide = 0;
+let bannerInterval = null;
+const SLIDE_DURATION = 5000; // 5 segundos
+let youtubePlayers = {}; // Almacenar los players de YouTube
+let videoPlaying = false; // Controlar si hay un video reproduciéndose
+
+// Función global requerida por la API de YouTube
+window.onYouTubeIframeAPIReady = function() {
+  initBanner();
+};
+
+function initBanner() {
+  const slides = document.querySelectorAll('.banner-slide');
+  const indicators = document.querySelectorAll('.indicator');
+  
+  if (slides.length === 0) return;
+  
+  // Configurar videos HTML5: auto-play, muted, sin loop, sin controles
+  const videos = document.querySelectorAll('.banner-image video');
+  videos.forEach((video, index) => {
+    video.muted = true;
+    video.loop = false; // NO loop - queremos que termine y cambie el carrusel
+    video.playsInline = true;
+    video.autoplay = false; // No auto-play inicial, se controla por slide
+    video.controls = false;
+    video.setAttribute('muted', '');
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+    video.removeAttribute('controls'); // Asegurar que no tenga controles
+    
+    // Evento cuando el video termina
+    video.addEventListener('ended', () => {
+      // Si este video es del slide activo, avanzar al siguiente
+      if (index === currentSlide) {
+        videoPlaying = false;
+        setTimeout(() => {
+          changeSlide(1);
+          // Reanudar auto-play después del cambio (solo si el siguiente no es video)
+          setTimeout(() => {
+            startBannerAutoPlay();
+          }, 300);
+        }, 500);
+      }
+    });
+    
+    // Evento cuando el video empieza a reproducirse
+    video.addEventListener('play', () => {
+      // Solo marcar como reproduciendo si es el slide activo
+      const slides = document.querySelectorAll('.banner-slide');
+      const slideIndex = Array.from(slides).findIndex(s => s.querySelector('video') === video);
+      if (slideIndex === currentSlide) {
+        videoPlaying = true;
+        stopBannerAutoPlay(); // Pausar el auto-play del carrusel
+      } else {
+        // Si no es el slide activo, pausar el video
+        video.pause();
+      }
+    });
+    
+    // Evento cuando el video se pausa
+    video.addEventListener('pause', () => {
+      // Solo marcar como no reproduciendo si es el slide activo
+      const slides = document.querySelectorAll('.banner-slide');
+      const slideIndex = Array.from(slides).findIndex(s => s.querySelector('video') === video);
+      if (slideIndex === currentSlide) {
+        videoPlaying = false;
+      }
+    });
+    
+    // Asegurar que el video esté pausado inicialmente
+    video.pause();
+  });
+  
+  // Configurar iframes de YouTube con la API
+  slides.forEach((slide, index) => {
+    const iframe = slide.querySelector('.banner-image iframe[src*="youtube.com"]');
+    if (iframe) {
+      // Extraer el ID del video de la URL
+      const src = iframe.getAttribute('src');
+      const videoIdMatch = src.match(/embed\/([^?&]+)/);
+      if (videoIdMatch && videoIdMatch[1]) {
+        const videoId = videoIdMatch[1];
+        
+        // Modificar la URL para incluir enablejsapi=1 si no está
+        const newSrc = src.includes('enablejsapi=1') 
+          ? src 
+          : src + (src.includes('?') ? '&' : '?') + 'enablejsapi=1';
+        iframe.setAttribute('src', newSrc);
+        
+        // Crear el player cuando la API esté lista
+        if (window.YT && window.YT.Player) {
+          createYouTubePlayer(iframe, videoId, index);
+        } else {
+          // Esperar a que la API esté lista
+          const checkYT = setInterval(() => {
+            if (window.YT && window.YT.Player) {
+              createYouTubePlayer(iframe, videoId, index);
+              clearInterval(checkYT);
+            }
+          }, 100);
+        }
+      }
+    }
+  });
+  
+  // Pausar/reanudar videos cuando cambia el slide
+  function handleVideoPlayback(slideIndex) {
+    slides.forEach((slide, i) => {
+      const video = slide.querySelector('video');
+      if (video) {
+        if (i === slideIndex) {
+          video.play().catch(() => {});
+        } else {
+          video.pause();
+          video.currentTime = 0; // Reiniciar al cambiar de slide
+        }
+      }
+    });
+  }
+  
+  // Iniciar auto-play (pero será pausado si hay un video de YouTube reproduciéndose)
+  startBannerAutoPlay();
+  
+  // Pausar auto-play al hacer hover
+  const carousel = document.querySelector('.banner-carousel');
+  if (carousel) {
+    carousel.addEventListener('mouseenter', stopBannerAutoPlay);
+    carousel.addEventListener('mouseleave', () => {
+      // Solo reanudar si no hay un video reproduciéndose
+      if (!videoPlaying) {
+        startBannerAutoPlay();
+      }
+    });
+  }
+  
+  // Touch swipe support para móviles
+  let touchStartX = 0;
+  let touchEndX = 0;
+  
+  carousel?.addEventListener('touchstart', (e) => {
+    touchStartX = e.changedTouches[0].screenX;
+  }, { passive: true });
+  
+  carousel?.addEventListener('touchend', (e) => {
+    touchEndX = e.changedTouches[0].screenX;
+    handleSwipe();
+  }, { passive: true });
+  
+  function handleSwipe() {
+    if (touchEndX < touchStartX - 50) {
+      // Swipe izquierda - siguiente
+      changeSlide(1);
+    }
+    if (touchEndX > touchStartX + 50) {
+      // Swipe derecha - anterior
+      changeSlide(-1);
+    }
+  }
+  
+  // Reproducir video del slide activo inicial
+  handleVideoPlayback(currentSlide);
+}
+
+function createYouTubePlayer(iframe, videoId, slideIndex) {
+  try {
+    const player = new YT.Player(iframe, {
+      events: {
+        'onStateChange': function(event) {
+          // Estado 1 = PLAYING (reproduciendo)
+          // Estado 0 = ENDED (terminado)
+          if (event.data === YT.PlayerState.PLAYING) {
+            videoPlaying = true;
+            stopBannerAutoPlay(); // Pausar el auto-play del carrusel
+          } else if (event.data === YT.PlayerState.ENDED) {
+            videoPlaying = false;
+            // Cuando termine el video, avanzar al siguiente slide
+            setTimeout(() => {
+              changeSlide(1);
+              // Reanudar auto-play después del cambio (solo si el siguiente no es video)
+              setTimeout(() => {
+                startBannerAutoPlay();
+              }, 300);
+            }, 500);
+          } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.STOPPED) {
+            videoPlaying = false;
+          }
+        }
+      }
+    });
+    youtubePlayers[slideIndex] = player;
+  } catch (e) {
+    console.log('Error creando YouTube player:', e);
+  }
+}
+
+function showSlide(index) {
+  const slides = document.querySelectorAll('.banner-slide');
+  const indicators = document.querySelectorAll('.banner-indicators .indicator');
+  const inlineIndicators = document.querySelectorAll('.banner-indicators-inline .indicator');
+  
+  if (slides.length === 0) return;
+  
+  // Asegurar que el índice esté en rango
+  if (index >= slides.length) {
+    currentSlide = 0;
+  } else if (index < 0) {
+    currentSlide = slides.length - 1;
+  } else {
+    currentSlide = index;
+  }
+  
+  // Actualizar slides
+  slides.forEach((slide, i) => {
+    const video = slide.querySelector('video');
+    const youtubePlayer = youtubePlayers[i];
+    
+    if (i === currentSlide) {
+      slide.classList.add('active');
+      // Reproducir video del slide activo
+      if (video) {
+        video.currentTime = 0; // Reiniciar al inicio
+        videoPlaying = true; // Marcar como reproduciéndose
+        stopBannerAutoPlay(); // Pausar auto-play del carrusel
+        video.play().catch(() => {});
+      }
+      // Para YouTube, el player se maneja automáticamente por la API
+      if (youtubePlayer) {
+        try {
+          videoPlaying = true; // Marcar como reproduciéndose
+          stopBannerAutoPlay(); // Pausar auto-play del carrusel
+          youtubePlayer.playVideo();
+        } catch (e) {
+          console.log('Error reproduciendo video de YouTube:', e);
+        }
+      }
+      
+      // Si no hay video, iniciar auto-play para imágenes
+      if (!video && !youtubePlayer) {
+        videoPlaying = false;
+        startBannerAutoPlay();
+      }
+    } else {
+      slide.classList.remove('active');
+      // Pausar videos de slides inactivos y reiniciarlos
+      if (video) {
+        video.pause();
+        video.currentTime = 0; // Reiniciar al inicio cuando no está activo
+      }
+      // Pausar videos de YouTube inactivos
+      if (youtubePlayer) {
+        try {
+          youtubePlayer.pauseVideo();
+          youtubePlayer.seekTo(0); // Reiniciar al inicio
+        } catch (e) {
+          console.log('Error pausando video de YouTube:', e);
+        }
+      }
+    }
+  });
+  
+  // Actualizar indicadores normales (móviles)
+  indicators.forEach((indicator, i) => {
+    if (i === currentSlide) {
+      indicator.classList.add('active');
+    } else {
+      indicator.classList.remove('active');
+    }
+  });
+  
+  // Actualizar indicadores inline (PC)
+  inlineIndicators.forEach((indicator, i) => {
+    if (i === currentSlide) {
+      indicator.classList.add('active');
+    } else {
+      indicator.classList.remove('active');
+    }
+  });
+}
+
+window.changeSlide = (direction) => {
+  const slides = document.querySelectorAll('.banner-slide');
+  if (slides.length === 0) return;
+  
+  // Reiniciar auto-play
+  stopBannerAutoPlay();
+  startBannerAutoPlay();
+  
+  let nextIndex = currentSlide + direction;
+  
+  if (nextIndex >= slides.length) {
+    nextIndex = 0;
+  } else if (nextIndex < 0) {
+    nextIndex = slides.length - 1;
+  }
+  
+  showSlide(nextIndex);
+};
+
+window.goToSlide = (index) => {
+  stopBannerAutoPlay();
+  startBannerAutoPlay();
+  showSlide(index);
+};
+
+function startBannerAutoPlay() {
+  stopBannerAutoPlay(); // Limpiar cualquier intervalo existente
+  
+  // No iniciar auto-play si hay un video reproduciéndose
+  if (videoPlaying) {
+    return;
+  }
+  
+  bannerInterval = setInterval(() => {
+    const slides = document.querySelectorAll('.banner-slide');
+    if (slides.length === 0) {
+      stopBannerAutoPlay();
+      return;
+    }
+    
+    // No avanzar si hay un video reproduciéndose
+    if (videoPlaying) {
+      return;
+    }
+    
+    // Verificar si el slide actual tiene un video
+    const currentSlideEl = slides[currentSlide];
+    if (currentSlideEl) {
+      const video = currentSlideEl.querySelector('video');
+      const youtubePlayer = youtubePlayers[currentSlide];
+      
+      // Si hay un video, no cambiar automáticamente (esperará a que termine)
+      if (video || youtubePlayer) {
+        return;
+      }
+    }
+    
+    // Si no hay video, avanzar normalmente
+    let nextIndex = currentSlide + 1;
+    if (nextIndex >= slides.length) {
+      nextIndex = 0;
+    }
+    showSlide(nextIndex);
+  }, SLIDE_DURATION);
+}
+
+function stopBannerAutoPlay() {
+  if (bannerInterval) {
+    clearInterval(bannerInterval);
+    bannerInterval = null;
+  }
+}
 
 // ==========================================================
 // 🔝 SCROLL TO TOP
