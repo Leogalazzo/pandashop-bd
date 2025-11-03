@@ -10,6 +10,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <link rel="icon" href="logo.png" type="image/png">
+  <!-- YouTube IFrame API -->
+  <script src="https://www.youtube.com/iframe_api"></script>
 </head>
 
 <body class="loading">
@@ -175,6 +177,85 @@
 
   <main class="container">
     <section id="filters" class="filters"></section>
+    
+    <!-- Banner Carousel Principal -->
+    <section class="hero-banner">
+      <div class="banner-carousel">
+        <div class="banner-slides">
+          <div class="banner-slide active">
+            <div class="banner-content">
+              <div class="banner-image">
+                <!-- 
+                OPCIÓN 1: Usar imagen
+                <img src="https://i.pinimg.com/736x/78/77/54/78775470b5293cf65e0b29b113278dfc.jpg" alt="Productos destacados">
+                
+                OPCIÓN 2: Usar video local/directo (.mp4)
+                <video autoplay muted loop playsinline>
+                  <source src="TU_VIDEO_AQUI.mp4" type="video/mp4">
+                </video>
+                
+                OPCIÓN 3: Usar video de YouTube (reemplaza VIDEO_ID con el ID del video)
+                Ejemplo: Si tu URL es https://www.youtube.com/watch?v=abc123, el VIDEO_ID es "abc123"
+                -->
+                <video autoplay muted loop playsinline>
+                  <source src="gancia0-scaloni1.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="banner-text">
+                <h2>¡Nuevos productos!</h2>
+                <p>Descubrí todos los productos que tenemos disponibles
+                </p>
+                <button class="banner-btn" onclick="document.querySelectorAll('.pill').forEach(p => {if(p.textContent === 'Todos') p.click();}); document.getElementById('grid').scrollIntoView({ behavior: 'smooth', block: 'start' });">
+                 Explorar productos
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div class="banner-slide">
+            <div class="banner-content">
+              <div class="banner-image">
+                <img src="https://i.pinimg.com/1200x/d2/28/51/d228515687f0abe69f8191da254c5039.jpg" alt="Promociones especiales">
+              </div>
+              <div class="banner-text">
+                <h2>Promociones y Combos</h2>
+                <p>Las mejores promos en PANDA Online</p>
+                <button class="banner-btn" onclick="document.querySelectorAll('.pill').forEach(p => {if(p.textContent === 'Promociones') p.click();}); document.getElementById('grid').scrollIntoView({ behavior: 'smooth', block: 'start' });">
+                  Ver promociones
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div class="banner-slide">
+            <div class="banner-content">
+              <div class="banner-image">
+                <img src="https://i.pinimg.com/1200x/16/4a/14/164a14d4e45306a9500b147f843037c2.jpg" alt="Delivery rápido">
+              </div>
+              <div class="banner-text">
+                <h2>Delivery incluido</h2>
+                <p>Hacemos entregas a domicilio. ¡Pedí ahora!</p>
+                <button class="banner-btn" onclick="document.querySelectorAll('.pill').forEach(p => {if(p.textContent === 'Todos') p.click();}); document.getElementById('grid').scrollIntoView({ behavior: 'smooth', block: 'start' });">
+                  Hacer pedido
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Indicadores -->
+        <div class="banner-indicators">
+          <span class="indicator active" onclick="goToSlide(0)"></span>
+          <span class="indicator" onclick="goToSlide(1)"></span>
+          <span class="indicator" onclick="goToSlide(2)"></span>
+        </div>
+        
+        <!-- Flechas de navegación -->
+        <button class="banner-nav prev" onclick="changeSlide(-1)" aria-label="Slide anterior">‹</button>
+        <button class="banner-nav next" onclick="changeSlide(1)" aria-label="Slide siguiente">›</button>
+      </div>
+    </section>
+    
     <section id="grid" class="grid"></section>
   </main>
 
